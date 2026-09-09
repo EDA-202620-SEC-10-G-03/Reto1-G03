@@ -173,13 +173,14 @@ def req_2(catalog, min_price, max_price):
     """
     REQ 2: Filtrar pedidos por rango de precio
     """
+
     start_time = get_time()
     orders = catalog['orders']
     sz = lt.size(orders)
-    
+ 
+    # 'filtered' es un array_list, no una lista nativa
     filtered = lt.new_list()
-    
-
+ 
     total_discount = 0
     count_discount = 0
     total_spend = 0
@@ -194,7 +195,10 @@ def req_2(catalog, min_price, max_price):
  
     for i in range(0, sz):
         elem = lt.get_element(orders, i)
-
+ 
+        # En vez de 'continue', envolvemos todo el procesamiento
+        # en un único if: solo entra si el precio es válido y
+        # está dentro del rango pedido.
         precio_valido = elem['Price_per_Box'] != "Unknown"
         en_rango = precio_valido and (min_price <= elem['Price_per_Box'] <= max_price)
  
@@ -212,7 +216,7 @@ def req_2(catalog, min_price, max_price):
             total_price += elem['Price_per_Box']
             count_price += 1
  
-            # Pedido mas reciente (Order_Date mas grande; empate -> mayor Amount)
+            # Pedido más reciente (Order_Date más grande; empate -> mayor Amount)
             if most_recent is None:
                 most_recent = elem
             elif elem['Order_Date'] > most_recent['Order_Date']:
@@ -247,9 +251,20 @@ def req_2(catalog, min_price, max_price):
             'total_count': 0
         }
  
-    avg_discount = total_discount / count_discount if count_discount > 0 else 0
-    avg_spend = total_spend / count_spend if count_spend > 0 else 0
-    avg_price = total_price / count_price if count_price > 0 else 0
+    if count_discount > 0:
+        avg_discount = total_discount / count_discount
+    else:
+        avg_discount = 0
+ 
+    if count_spend > 0:
+        avg_spend = total_spend / count_spend
+    else:
+        avg_spend = 0
+ 
+    if count_price > 0:
+        avg_price = total_price / count_price
+    else:
+        avg_price = 0
  
     end_time = get_time()
     return {
@@ -262,6 +277,7 @@ def req_2(catalog, min_price, max_price):
         'min_amt': min_amt,
         'max_amt': max_amt
     }
+ 
 
 
 def req_3(catalog, country, channel):
@@ -626,53 +642,94 @@ def req_5(catalog, filter_type, product, start_date, end_date):
     """
     start_time = get_time()
     orders = catalog['orders']
-    sz = list_structure.size(orders)
-    
-    filtered = []
+    sz = lt.size(orders)
+ 
+    filtro = filter_type.upper()
+ 
+    total_price = 0
+    count_price = 0
+    total_boxes = 0
+    count_boxes = 0
+    total_spend = 0
+    count_spend = 0
+ 
+    total_count = 0
+    selected_order = None
+ 
     for i in range(0, sz):
-        elem = list_structure.get_element(orders, i)
-        if elem['Product'] == product and start_date <= elem['Order_Date'] <= end_date:
-            filtered.append(elem)
-            
-    total_count = len(filtered)
+        elem = lt.get_element(orders, i)
+ 
+        coincide_producto = elem['Product'] == product
+        en_rango_fechas = start_date <= elem['Order_Date'] <= end_date
+ 
+        if coincide_producto and en_rango_fechas:
+            total_count += 1
+ 
+            if elem['Price_per_Box'] != "Unknown":
+                total_price += elem['Price_per_Box']
+                count_price += 1
+ 
+            if elem['Boxes_Shipped'] != "Unknown":
+                total_boxes += elem['Boxes_Shipped']
+                count_boxes += 1
+ 
+            if elem['Marketing_Spend'] != "Unknown":
+                total_spend += elem['Marketing_Spend']
+                count_spend += 1
+ 
+            if selected_order is None:
+                selected_order = elem
+            elif filtro == "MENOR":
+                if elem['Amount'] < selected_order['Amount']:
+                    selected_order = elem
+                elif elem['Amount'] == selected_order['Amount']:
+                    if elem['Price_per_Box'] < selected_order['Price_per_Box']:
+                        selected_order = elem
+                    elif elem['Price_per_Box'] == selected_order['Price_per_Box']:
+                        if elem['Marketing_Spend'] < selected_order['Marketing_Spend']:
+                            selected_order = elem
+            else:
+                if elem['Amount'] > selected_order['Amount']:
+                    selected_order = elem
+                elif elem['Amount'] == selected_order['Amount']:
+                    if elem['Price_per_Box'] < selected_order['Price_per_Box']:
+                        selected_order = elem
+                    elif elem['Price_per_Box'] == selected_order['Price_per_Box']:
+                        if elem['Marketing_Spend'] < selected_order['Marketing_Spend']:
+                            selected_order = elem
+ 
     if total_count == 0:
-        return {'elapsed_time_ms': delta_time(start_time, get_time()), 'total_count': 0}
-        
-    avg_price = sum(o['Price_per_Box'] for o in filtered if o['Price_per_Box'] != "Unknown") / total_count
-    avg_boxes = sum(o['Boxes_Shipped'] for o in filtered if o['Boxes_Shipped'] != "Unknown") / total_count
-    avg_spend = sum(o['Marketing_Spend'] for o in filtered if o['Marketing_Spend'] != "Unknown") / total_count
-    
-    selected_order = filtered[0]
-    for o in filtered[1:]:
-        if filter_type.upper() == "MENOR":
-            if o['Amount'] < selected_order['Amount']:
-                selected_order = o
-            elif o['Amount'] == selected_order['Amount']:
-                if o['Price_per_Box'] < selected_order['Price_per_Box']:
-                    selected_order = o
-                elif o['Price_per_Box'] == selected_order['Price_per_Box']:
-                    if o['Marketing_Spend'] < selected_order['Marketing_Spend']:
-                        selected_order = o
-        else:
-            if o['Amount'] > selected_order['Amount']:
-                selected_order = o
-            elif o['Amount'] == selected_order['Amount']:
-                if o['Price_per_Box'] < selected_order['Price_per_Box']:
-                    selected_order = o
-                elif o['Price_per_Box'] == selected_order['Price_per_Box']:
-                    if o['Marketing_Spend'] < selected_order['Marketing_Spend']:
-                        selected_order = o
-
+        return {
+            'elapsed_time_ms': delta_time(start_time, get_time()),
+            'total_count': 0
+        }
+ 
+    if count_price > 0:
+        avg_price = total_price / count_price
+    else:
+        avg_price = 0
+ 
+    if count_boxes > 0:
+        avg_boxes = total_boxes / count_boxes
+    else:
+        avg_boxes = 0
+ 
+    if count_spend > 0:
+        avg_spend = total_spend / count_spend
+    else:
+        avg_spend = 0
+ 
     end_time = get_time()
     return {
         'elapsed_time_ms': delta_time(start_time, end_time),
-        'filter_type': filter_type.upper(),
+        'filter_type': filtro,
         'total_count': total_count,
         'selected_order': selected_order,
         'avg_price': avg_price,
         'avg_boxes': avg_boxes,
         'avg_spend': avg_spend
     }
+
 
 
 def req_6(catalog, start_date, end_date):
