@@ -6,10 +6,10 @@ from DataStructures.List import single_linked_list as sll
 
 def new_logic():
     """
-    Crea el catálogo para almacenar las estructuras de datos.
+    Crea el catálogo inicial para almacenar la estructura de datos.
     """
     catalog = {
-        'orders': list_structure.new_list()
+        'orders': lt.new_list()
     }
     return catalog
 
@@ -20,8 +20,8 @@ def load_data(catalog, filename):
     """
     csv.field_size_limit(2147483647)
     
-    start_time = get_time()
-    catalog['orders'] = list_structure.new_list()
+    start_time = time.time()
+    catalog['orders'] = lt.new_list()
     
     total_records = 0
     min_amount_order = None
@@ -31,73 +31,169 @@ def load_data(catalog, filename):
         reader = csv.DictReader(file)
         
         for raw_row in reader:
-            # 2. Limpiar espacios alrededor de las llaves por si acaso
-            row = {k.strip(): v.strip() if isinstance(v, str) else v for k, v in raw_row.items() if k}
-            
+            # 1. Limpiar las llaves del diccionario
+            row = {}
+            for key, val in raw_row.items():
+                if key is not None:
+                    clean_key = key.strip()
+                    row[clean_key] = val
+
             total_records += 1
             
-            # Formatear campos y colocar 'Unknown' en vacíos
+            # 2. Procesar cada campo directamente aquí adentro
+            
+            # Campos de texto
+            order_id = row.get('Order_ID')
+            if order_id is not None and str(order_id).strip() != "":
+                order_id_val = str(order_id).strip()
+            else:
+                order_id_val = "Unknown"
+
+            product = row.get('Product')
+            if product is not None and str(product).strip() != "":
+                product_val = str(product).strip()
+            else:
+                product_val = "Unknown"
+
+            country = row.get('Country')
+            if country is not None and str(country).strip() != "":
+                country_val = str(country).strip()
+            else:
+                country_val = "Unknown"
+
+            channel = row.get('Channel')
+            if channel is not None and str(channel).strip() != "":
+                channel_val = str(channel).strip()
+            else:
+                channel_val = "Unknown"
+
+            order_date = row.get('Order_Date')
+            if order_date is not None and str(order_date).strip() != "":
+                order_date_val = str(order_date).strip()
+            else:
+                order_date_val = "Unknown"
+
+            # Campo Discount_Pct (float)
+            disc = row.get('Discount_Pct')
+            if disc is not None and str(disc).strip() != "":
+                try:
+                    disc_val = float(disc)
+                except ValueError:
+                    disc_val = "Unknown"
+            else:
+                disc_val = "Unknown"
+
+            # Campo Price_per_Box (float)
+            price = row.get('Price_per_Box')
+            if price is not None and str(price).strip() != "":
+                try:
+                    price_val = float(price)
+                except ValueError:
+                    price_val = "Unknown"
+            else:
+                price_val = "Unknown"
+
+            # Campo Marketing_Spend (float)
+            mkt = row.get('Marketing_Spend')
+            if mkt is not None and str(mkt).strip() != "":
+                try:
+                    mkt_val = float(mkt)
+                except ValueError:
+                    mkt_val = "Unknown"
+            else:
+                mkt_val = "Unknown"
+
+            # Campo Boxes_Shipped (int)
+            boxes = row.get('Boxes_Shipped')
+            if boxes is not None and str(boxes).strip() != "":
+                try:
+                    boxes_val = int(boxes)
+                except ValueError:
+                    boxes_val = "Unknown"
+            else:
+                boxes_val = "Unknown"
+
+            # Campo Amount (float)
+            amt = row.get('Amount')
+            if amt is not None and str(amt).strip() != "":
+                try:
+                    amt_val = float(amt)
+                except ValueError:
+                    amt_val = "Unknown"
+            else:
+                amt_val = "Unknown"
+
+            # 3. Construir el diccionario del pedido
             order = {
-                'Order_ID': row.get('Order_ID') if row.get('Order_ID') else "Unknown",
-                'Product': row.get('Product') if row.get('Product') else "Unknown",
-                'Country': row.get('Country') if row.get('Country') else "Unknown",
-                'Channel': row.get('Channel') if row.get('Channel') else "Unknown",
-                'Order_Date': row.get('Order_Date') if row.get('Order_Date') else "Unknown",
-                'Discount_Pct': float(row['Discount_Pct']) if row.get('Discount_Pct') else "Unknown",
-                'Price_per_Box': float(row['Price_per_Box']) if row.get('Price_per_Box') else "Unknown",
-                'Marketing_Spend': float(row['Marketing_Spend']) if row.get('Marketing_Spend') else "Unknown",
-                'Boxes_Shipped': int(row['Boxes_Shipped']) if row.get('Boxes_Shipped') else "Unknown",
-                'Amount': float(row['Amount']) if row.get('Amount') else "Unknown"
+                'Order_ID': order_id_val,
+                'Product': product_val,
+                'Country': country_val,
+                'Channel': channel_val,
+                'Order_Date': order_date_val,
+                'Discount_Pct': disc_val,
+                'Price_per_Box': price_val,
+                'Marketing_Spend': mkt_val,
+                'Boxes_Shipped': boxes_val,
+                'Amount': amt_val
             }
             
-            list_structure.add_last(catalog['orders'], order)
+            # Guardar en la estructura de datos lt
+            lt.add_last(catalog['orders'], order)
             
-            
-            # Menor Amount (desempate por menor Price_per_Box)
+            # 4. Búsqueda del menor Amount (Desempate por menor Price_per_Box)
             if min_amount_order is None:
                 min_amount_order = order
             elif order['Amount'] != "Unknown" and min_amount_order['Amount'] != "Unknown":
                 if order['Amount'] < min_amount_order['Amount']:
                     min_amount_order = order
                 elif order['Amount'] == min_amount_order['Amount']:
-                    if order['Price_per_Box'] < min_amount_order['Price_per_Box']:
-                        min_amount_order = order
-                        
-            # Mayor Amount (desempate por menor Price_per_Box)
+                    if order['Price_per_Box'] != "Unknown" and min_amount_order['Price_per_Box'] != "Unknown":
+                        if order['Price_per_Box'] < min_amount_order['Price_per_Box']:
+                            min_amount_order = order
+                            
+            # 5. Búsqueda del mayor Amount (Desempate por menor Price_per_Box)
             if max_amount_order is None:
                 max_amount_order = order
             elif order['Amount'] != "Unknown" and max_amount_order['Amount'] != "Unknown":
                 if order['Amount'] > max_amount_order['Amount']:
                     max_amount_order = order
                 elif order['Amount'] == max_amount_order['Amount']:
-                    if order['Price_per_Box'] < max_amount_order['Price_per_Box']:
-                        max_amount_order = order
+                    if order['Price_per_Box'] != "Unknown" and max_amount_order['Price_per_Box'] != "Unknown":
+                        if order['Price_per_Box'] < max_amount_order['Price_per_Box']:
+                            max_amount_order = order
 
-    end_time = get_time()
+    end_time = time.time()
     
+    # 6. Obtener los primeros 5 y últimos 5 usando lt
     first_5 = []
     last_5 = []
-    sz = list_structure.size(catalog['orders'])
+    sz = lt.size(catalog['orders'])
     
     if sz > 0:
-        # Obtener los primeros 5 elementos (índices 0 a min(5, sz) - 1)
-        for i in range(0, min(5, sz)):
-            first_5.append(list_structure.get_element(catalog['orders'], i))
+        limit_first = 5
+        if sz < 5:
+            limit_first = sz
             
-        # Obtener los últimos 5 elementos (índices max(0, sz - 5) a sz - 1)
-        start_index = max(0, sz - 5)
+        for i in range(limit_first):
+            element = lt.get_element(catalog['orders'], i)
+            first_5.append(element)
+            
+        start_index = 0
+        if sz > 5:
+            start_index = sz - 5
+            
         for i in range(start_index, sz):
-            last_5.append(list_structure.get_element(catalog['orders'], i))
+            element = lt.get_element(catalog['orders'], i)
+            last_5.append(element)
 
     return {
-        'elapsed_time_ms': delta_time(start_time, end_time),
+        'elapsed_time_ms': (end_time - start_time) * 1000,
         'total_orders': total_records,
         'min_amount_order': min_amount_order,
         'max_amount_order': max_amount_order,
         'first_5': first_5,
         'last_5': last_5
     }
-
 
 import time
 import DataStructures.List.array_list as lt
