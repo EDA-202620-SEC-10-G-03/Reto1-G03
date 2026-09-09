@@ -409,31 +409,170 @@ def req_4(catalog, product, country):
     REQ 4: Precio promedio para una combinación Producto-País
     """
     start_time = get_time()
+
     orders = catalog['orders']
     sz = list_structure.size(orders)
+    filtered = sll.new_list()
     
-    filtered = []
-    for i in range(0, sz):
+    for i in range(sz):
+
         elem = list_structure.get_element(orders, i)
+
         if elem['Product'] == product and elem['Country'] == country:
-            filtered.append(elem)
-            
-    total_count = len(filtered)
+            sll.add_last(filtered, elem)
+
+    total_count = sll.size(filtered)
+
     if total_count == 0:
-        return {'elapsed_time_ms': delta_time(start_time, get_time()), 'total_count': 0}
+        return {
+            'elapsed_time_ms': delta_time(start_time, get_time()),
+            'total_count': 0
+        }
+
+    total_price = 0
+    count_price = 0
+
+    total_discount = 0
+    count_discount = 0
+
+    total_spend = 0
+    count_spend = 0
+
+    total_boxes = 0
+    count_boxes = 0
+
+    current = filtered['first']
+
+    while current is not None:
+
+        order = current['info']
+
+        if order['Price_per_Box'] != "Unknown":
+            total_price += order['Price_per_Box']
+            count_price += 1
+
+        if order['Discount_Pct'] != "Unknown":
+            total_discount += order['Discount_Pct']
+            count_discount += 1
+
+        if order['Marketing_Spend'] != "Unknown":
+            total_spend += order['Marketing_Spend']
+            count_spend += 1
+
+        if order['Boxes_Shipped'] != "Unknown":
+            total_boxes += order['Boxes_Shipped']
+            count_boxes += 1
+
+        current = current['next']
+
+    if count_price > 0:
+        avg_price = total_price / count_price
+    else:
+        avg_price = 0
+
+    if count_discount > 0:
+        avg_discount = total_discount / count_discount
+    else:
+        avg_discount = 0
+
+    if count_spend > 0:
+        avg_spend = total_spend / count_spend
+    else:
+        avg_spend = 0
+
+    if count_boxes > 0:
+        avg_boxes = total_boxes / count_boxes
+    else:
+        avg_boxes = 0
+
+    first = filtered['first']['info']
+
+    top_1 = first
+    top_2 = None
+
+    current = filtered['first']['next']
+
+    while current is not None:
+
+        order = current['info']
+
+        if order['Amount'] > top_1['Amount']:
+
+            top_2 = top_1
+            top_1 = order
+
+        elif order['Amount'] == top_1['Amount']:
+
+            if order['Marketing_Spend'] < top_1['Marketing_Spend']:
+
+                top_2 = top_1
+                top_1 = order
+
+            elif order['Marketing_Spend'] == top_1['Marketing_Spend']:
+
+                order_id = int(
+                    order['Order_ID'].replace("ORD", "")
+                    if order['Order_ID'].startswith("ORD")
+                    else order['Order_ID']
+                )
+
+                top_1_id = int(
+                    top_1['Order_ID'].replace("ORD", "")
+                    if top_1['Order_ID'].startswith("ORD")
+                    else top_1['Order_ID']
+                )
+
+                if order_id > top_1_id:
+                    top_2 = top_1
+                    top_1 = order
+
+                else:
+                    if top_2 is None or order['Amount'] > top_2['Amount']:
+                        top_2 = order
+
+        else:
+
+            if top_2 is None:
+
+                top_2 = order
+
+            elif order['Amount'] > top_2['Amount']:
+
+                top_2 = order
+
+            elif order['Amount'] == top_2['Amount']:
+
+                if order['Marketing_Spend'] < top_2['Marketing_Spend']:
+                    top_2 = order
+
+                elif order['Marketing_Spend'] == top_2['Marketing_Spend']:
+
+                    order_id = int(
+                        order['Order_ID'].replace("ORD", "")
+                        if order['Order_ID'].startswith("ORD")
+                        else order['Order_ID']
+                    )
+
+                    top_2_id = int(
+                        top_2['Order_ID'].replace("ORD", "")
+                        if top_2['Order_ID'].startswith("ORD")
+                        else top_2['Order_ID']
+                    )
+
+                    if order_id > top_2_id:
+                        top_2 = order
+
+        current = current['next']
         
-    avg_price = sum(o['Price_per_Box'] for o in filtered if o['Price_per_Box'] != "Unknown") / total_count
-    avg_discount = sum(o['Discount_Pct'] for o in filtered if o['Discount_Pct'] != "Unknown") / total_count
-    avg_spend = sum(o['Marketing_Spend'] for o in filtered if o['Marketing_Spend'] != "Unknown") / total_count
-    avg_boxes = sum(o['Boxes_Shipped'] for o in filtered if o['Boxes_Shipped'] != "Unknown") / total_count
-    
-    def sort_key(o):
-        return (o['Amount'], -o['Marketing_Spend'], -int(o['Order_ID'].replace("ORD", "") if o['Order_ID'].startswith("ORD") else o['Order_ID']))
-        
-    sorted_orders = sorted(filtered, key=sort_key, reverse=True)
-    top_2 = sorted_orders[:2]
-    
+    top_2_list = sll.new_list()
+
+    sll.add_last(top_2_list, top_1)
+
+    if top_2 is not None:
+        sll.add_last(top_2_list, top_2)
+
     end_time = get_time()
+
     return {
         'elapsed_time_ms': delta_time(start_time, end_time),
         'total_count': total_count,
@@ -441,9 +580,8 @@ def req_4(catalog, product, country):
         'avg_discount': avg_discount,
         'avg_spend': avg_spend,
         'avg_boxes': avg_boxes,
-        'top_2': top_2
+        'top_2': top_2_list
     }
-
 
 def req_5(catalog, filter_type, product, start_date, end_date):
     """
