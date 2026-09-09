@@ -59,12 +59,13 @@ def remove_last(new_list):
     new_list["elements"].pop(-1)
     return remove
 
-def remove_first(new_list):
-    if new_list["size"] == 0:
+def remove_first(my_list):
+    if is_empty(my_list):
         raise IndexError("list index out of range")
-    eliminado = new_list["size"] - 1
-    new_list["elements"].pop(0)
-    return eliminado
+    
+    element = my_list["elements"].pop(0)
+    my_list["size"] -= 1  # <-- ESTA LÍNEA ES VITAL
+    return element
 
 def insert_element(new_list,element,pos):
     if pos < 0 or pos > new_list["size"]:

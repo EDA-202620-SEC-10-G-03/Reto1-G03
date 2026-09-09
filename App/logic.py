@@ -1,7 +1,8 @@
 import csv
+csv.field_size_limit(2147483647)
 import time
-from DataStructures.List import array_list as list_structure
-
+from DataStructures.List import array_list as lt
+from DataStructures.List import single_linked_list as sll 
 
 def new_logic():
     """
@@ -230,39 +231,167 @@ def req_3(catalog, country, channel):
     """
     REQ 3: Promedio por país y canal
     """
+    
     start_time = get_time()
+    
     orders = catalog['orders']
     sz = list_structure.size(orders)
-    
-    filtered = []
-    for i in range(0, sz):
+
+    filtered = sll.new_list()
+
+    for i in range(sz):
         elem = list_structure.get_element(orders, i)
+
         if elem['Country'] == country and elem['Channel'] == channel:
-            filtered.append(elem)
-            
-    total_count = len(filtered)
+            sll.add_last(filtered, elem)
+
+    total_count = sll.size(filtered)
+
+    # Si no hay pedidos
     if total_count == 0:
-        return {'elapsed_time_ms': delta_time(start_time, get_time()), 'total_count': 0}
-        
-    avg_price = sum(o['Price_per_Box'] for o in filtered if o['Price_per_Box'] != "Unknown") / total_count
-    avg_discount = sum(o['Discount_Pct'] for o in filtered if o['Discount_Pct'] != "Unknown") / total_count
-    avg_spend = sum(o['Marketing_Spend'] for o in filtered if o['Marketing_Spend'] != "Unknown") / total_count
-    avg_boxes = sum(o['Boxes_Shipped'] for o in filtered if o['Boxes_Shipped'] != "Unknown") / total_count
-    
-    product_counts = {}
-    year_counts = {}
-    for o in filtered:
-        p = o['Product']
-        product_counts[p] = product_counts.get(p, 0) + 1
-        
-        if o['Order_Date'] != "Unknown":
-            y = o['Order_Date'].split("-")[0]
-            year_counts[y] = year_counts.get(y, 0) + 1
+        return {
+            'elapsed_time_ms': delta_time(start_time, get_time()),
+            'total_count': 0
+        }
+
+    total_price = 0
+    count_price = 0
+
+    total_discount = 0
+    count_discount = 0
+
+    total_spend = 0
+    count_spend = 0
+
+    total_boxes = 0
+    count_boxes = 0
+
+    product_counts = sll.new_list()
+    year_counts = sll.new_list()
+
+    current = filtered['first']
+
+    while current is not None:
+
+        order = current['info']
+
+        if order['Price_per_Box'] != "Unknown":
+            total_price += order['Price_per_Box']
+            count_price += 1
+
+        if order['Discount_Pct'] != "Unknown":
+            total_discount += order['Discount_Pct']
+            count_discount += 1
+
+        if order['Marketing_Spend'] != "Unknown":
+            total_spend += order['Marketing_Spend']
+            count_spend += 1
             
-    most_freq_product = max(product_counts, key=product_counts.get) if product_counts else "Unknown"
-    top_year = max(year_counts, key=year_counts.get) if year_counts else "Unknown"
-    
+        if order['Boxes_Shipped'] != "Unknown":
+            total_boxes += order['Boxes_Shipped']
+            count_boxes += 1
+
+        product = order['Product']
+
+        product_node = product_counts['first']
+        found_product = False
+
+        while product_node is not None:
+
+            if product_node['info']['name'] == product:
+                product_node['info']['count'] += 1
+                found_product = True
+                break
+
+            product_node = product_node['next']
+
+        if not found_product:
+            product_data = {
+                'name': product,
+                'count': 1
+            }
+
+            sll.add_last(product_counts, product_data)
+
+        if order['Order_Date'] != "Unknown":
+
+            year = order['Order_Date'].split("-")[0]
+
+            year_node = year_counts['first']
+            found_year = False
+
+            while year_node is not None:
+
+                if year_node['info']['year'] == year:
+                    year_node['info']['count'] += 1
+                    found_year = True
+                    break
+
+                year_node = year_node['next']
+
+            if not found_year:
+
+                year_data = {
+                    'year': year,
+                    'count': 1
+                }
+
+                sll.add_last(year_counts, year_data)
+
+        current = current['next']
+
+    if count_price > 0:
+        avg_price = total_price / count_price
+    else:
+        avg_price = 0
+
+    if count_discount > 0:
+        avg_discount = total_discount / count_discount
+    else:
+        avg_discount = 0
+
+    if count_spend > 0:
+        avg_spend = total_spend / count_spend
+    else:
+        avg_spend = 0
+
+    if count_boxes > 0:
+        avg_boxes = total_boxes / count_boxes
+    else:
+        avg_boxes = 0
+
+    most_freq_product = "Unknown"
+    max_product_count = 0
+
+    product_node = product_counts['first']
+
+    while product_node is not None:
+
+        product_data = product_node['info']
+
+        if product_data['count'] > max_product_count:
+            max_product_count = product_data['count']
+            most_freq_product = product_data['name']
+
+        product_node = product_node['next']
+
+    top_year = "Unknown"
+    max_year_count = 0
+
+    year_node = year_counts['first']
+
+    while year_node is not None:
+
+        year_data = year_node['info']
+
+        if year_data['count'] > max_year_count:
+            max_year_count = year_data['count']
+            top_year = year_data['year']
+
+        year_node = year_node['next']
+
     end_time = get_time()
+
     return {
         'elapsed_time_ms': delta_time(start_time, end_time),
         'total_count': total_count,
