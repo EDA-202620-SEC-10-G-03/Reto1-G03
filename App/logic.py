@@ -640,76 +640,166 @@ def req_5(catalog, filter_type, product, start_date, end_date):
 
 def req_6(catalog, start_date, end_date):
     """
-    REQ 6: Identificar el canal con más ventas y mayor recaudación en un rango de tiempo
+    REQ 6: Identificar el canal con más ventas y mayor recaudación
+    en un rango de tiempo
     """
+
     start_time = get_time()
+
     orders = catalog['orders']
     sz = list_structure.size(orders)
-    
-    filtered = []
-    for i in range(0, sz):
+
+    filtered = lt.new_list()
+
+    for i in range(sz):
+
         elem = list_structure.get_element(orders, i)
+
         if start_date <= elem['Order_Date'] <= end_date:
-            filtered.append(elem)
-            
-    total_count = len(filtered)
+            lt.add_last(filtered, elem)
+
+    total_count = lt.size(filtered)
+
     if total_count == 0:
-        return {'elapsed_time_ms': delta_time(start_time, get_time()), 'total_count': 0}
-        
-    channel_data = {}
-    for o in filtered:
-        ch = o['Channel']
-        if ch not in channel_data:
-            channel_data[ch] = {'orders': [], 'total_amount': 0.0, 'count': 0}
-        channel_data[ch]['orders'].append(o)
-        channel_data[ch]['total_amount'] += o['Amount']
-        channel_data[ch]['count'] += 1
-        
-    most_used_channel = max(channel_data, key=lambda k: channel_data[k]['count'])
-    most_revenue_channel = max(channel_data, key=lambda k: channel_data[k]['total_amount'])
-    
-    channel_stats = {}
-    for ch, data in channel_data.items():
-        ch_orders = data['orders']
-        avg_price = sum(o['Price_per_Box'] for o in ch_orders) / len(ch_orders)
-        avg_spend = sum(o['Marketing_Spend'] for o in ch_orders) / len(ch_orders)
-        most_expensive = max(ch_orders, key=lambda o: o['Amount'])
-        cheapest = min(ch_orders, key=lambda o: o['Amount'])
-        
-        channel_stats[ch] = {
-            'avg_price': avg_price,
-            'avg_spend': avg_spend,
-            'most_expensive': most_expensive,
-            'cheapest': cheapest
+        return {
+            'elapsed_time_ms': delta_time(start_time, get_time()),
+            'total_count': 0
         }
 
+    channel_data = lt.new_list()
+
+    for i in range(lt.size(filtered)):
+
+        order = lt.get_element(filtered, i)
+        channel = order['Channel']
+
+        channel_position = -1
+
+        for j in range(lt.size(channel_data)):
+
+            data = lt.get_element(channel_data, j)
+
+            if data['channel'] == channel:
+                channel_position = j
+                break
+
+        if channel_position == -1:
+
+            new_channel = {
+                'channel': channel,
+                'count': 1,
+                'total_amount': order['Amount'],
+
+                'total_price': (
+                    order['Price_per_Box']
+                    if order['Price_per_Box'] != "Unknown"
+                    else 0
+                ),
+
+                'count_price': (
+                    1
+                    if order['Price_per_Box'] != "Unknown"
+                    else 0
+                ),
+
+                'total_spend': (
+                    order['Marketing_Spend']
+                    if order['Marketing_Spend'] != "Unknown"
+                    else 0
+                ),
+
+                'count_spend': (
+                    1
+                    if order['Marketing_Spend'] != "Unknown"
+                    else 0
+                ),
+
+                'most_expensive': order,
+                'cheapest': order
+            }
+
+            lt.add_last(channel_data, new_channel)
+
+        else:
+
+            data = lt.get_element(channel_data, channel_position)
+
+            data['count'] += 1
+            data['total_amount'] += order['Amount']
+
+            if order['Price_per_Box'] != "Unknown":
+                data['total_price'] += order['Price_per_Box']
+                data['count_price'] += 1
+                
+            if order['Marketing_Spend'] != "Unknown":
+                data['total_spend'] += order['Marketing_Spend']
+                data['count_spend'] += 1
+
+            if order['Amount'] > data['most_expensive']['Amount']:
+                data['most_expensive'] = order
+
+            if order['Amount'] < data['cheapest']['Amount']:
+                data['cheapest'] = order
+
+    first_channel = lt.get_element(channel_data, 0)
+
+    most_used_channel = first_channel
+    most_revenue_channel = first_channel
+
+    for i in range(1, lt.size(channel_data)):
+
+        data = lt.get_element(channel_data, i)
+
+        if data['count'] > most_used_channel['count']:
+            most_used_channel = data
+
+        if data['total_amount'] > most_revenue_channel['total_amount']:
+            most_revenue_channel = data
+
+    channel_stats = lt.new_list()
+
+    for i in range(lt.size(channel_data)):
+
+        data = lt.get_element(channel_data, i)
+        
+        if data['count_price'] > 0:
+            avg_price = data['total_price'] / data['count_price']
+        else:
+            avg_price = "Unknown"
+
+        if data['count_spend'] > 0:
+            avg_spend = data['total_spend'] / data['count_spend']
+        else:
+            avg_spend = "Unknown"
+
+        stats = {
+            'channel': data['channel'],
+            'avg_price': avg_price,
+            'avg_spend': avg_spend,
+            'most_expensive': data['most_expensive'],
+            'cheapest': data['cheapest']
+        }
+
+        lt.add_last(channel_stats, stats)
+
     end_time = get_time()
+
     return {
         'elapsed_time_ms': delta_time(start_time, end_time),
+
         'total_count': total_count,
+
         'most_used_channel': {
-            'name': most_used_channel,
-            'count': channel_data[most_used_channel]['count'],
-            'total_amount': channel_data[most_used_channel]['total_amount']
+            'name': most_used_channel['channel'],
+            'count': most_used_channel['count'],
+            'total_amount': most_used_channel['total_amount']
         },
+
         'most_revenue_channel': {
-            'name': most_revenue_channel,
-            'count': channel_data[most_revenue_channel]['count'],
-            'total_amount': channel_data[most_revenue_channel]['total_amount']
+            'name': most_revenue_channel['channel'],
+            'count': most_revenue_channel['count'],
+            'total_amount': most_revenue_channel['total_amount']
         },
+
         'channel_stats': channel_stats
     }
-
-
-def get_time():
-    """
-    Devuelve el instante tiempo de procesamiento en milisegundos
-    """
-    return float(time.perf_counter() * 1000)
-
-
-def delta_time(start, end):
-    """
-    Devuelve la diferencia entre tiempos de procesamiento muestreados
-    """
-    return float(end - start)
