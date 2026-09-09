@@ -1,4 +1,6 @@
 import sys
+default_limit = 1000
+sys.setrecursionlimit(default_limit*10)
 import os
 
 # Asegura la resolución de rutas de importación
