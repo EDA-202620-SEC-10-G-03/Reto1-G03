@@ -27,7 +27,6 @@ def load_data(catalog, filename):
     min_amount_order = None
     max_amount_order = None
     
-    # 1. Usar 'utf-8-sig' para eliminar el carácter BOM invisible en el primer encabezado
     with open(filename, mode='r', encoding='utf-8-sig') as file:
         reader = csv.DictReader(file)
         
@@ -100,74 +99,185 @@ def load_data(catalog, filename):
     }
 
 
-def req_1(catalog, product_name):
+import time
+import DataStructures.List.array_list as lt
+
+
+def req_1(dataset, product_name):
     """
-    REQ 1: Promedio de características para un producto específico
+    REQ 1: Promedio de características para un producto específico.
+    
+    :param dataset: Lista (TAD lt/array_list) con todos los pedidos cargados.
+    :param product_name: Nombre del producto a buscar (str).
+    :return: Diccionario con los resultados estadísticos del requerimiento.
     """
-    start_time = get_time()
-    orders = catalog['orders']
-    sz = list_structure.size(orders)
-    
-    filtered_orders = []
-    for i in range(0, sz):
-        elem = list_structure.get_element(orders, i)
-        if elem['Product'] == product_name:
-            filtered_orders.append(elem)
-            
-    total_count = len(filtered_orders)
-    if total_count == 0:
-        return {'elapsed_time_ms': delta_time(start_time, get_time()), 'total_count': 0}
-        
-    prices = [o['Price_per_Box'] for o in filtered_orders if o['Price_per_Box'] != "Unknown"]
-    discounts = [o['Discount_Pct'] for o in filtered_orders if o['Discount_Pct'] != "Unknown"]
-    boxes = [o['Boxes_Shipped'] for o in filtered_orders if o['Boxes_Shipped'] != "Unknown"]
-    spends = [o['Marketing_Spend'] for o in filtered_orders if o['Marketing_Spend'] != "Unknown"]
-    
+    start_time = time.time()
+
+    # 1. Filtrar los pedidos del producto especificado usando la estructura lt
+    filtered_list = lt.new_list()
+    total_dataset = lt.size(dataset)
+
+    for i in range(total_dataset):
+        order = lt.get_element(dataset, i)
+        if order.get("Product") == product_name:
+            lt.add_last(filtered_list, order)
+
+    count = lt.size(filtered_list)
+
+    # Si no se encontraron pedidos para ese producto
+    if count == 0:
+        end_time = time.time()
+        return {
+            "execution_time_ms": (end_time - start_time) * 1000,
+            "total_orders": 0,
+            "price_per_box": {"avg": 0, "min": 0, "max": 0},
+            "discount_pct": {"avg": 0, "min": 0, "max": 0},
+            "boxes_shipped": {"avg": 0, "min": 0, "max": 0},
+            "marketing_spend": {"avg": 0, "min": 0, "max": 0},
+            "most_frequent_year": "N/A",
+            "max_amount_order": None,
+            "min_amount_order": None
+        }
+
+    # 2. Inicializar acumuladores y variables extremas con el primer elemento
+    first_order = lt.get_element(filtered_list, 0)
+
+    sum_price = float(first_order.get("Price_per_Box", 0))
+    min_price = sum_price
+    max_price = sum_price
+
+    sum_discount = float(first_order.get("Discount_Pct", 0))
+    min_discount = sum_discount
+    max_discount = sum_discount
+
+    sum_boxes = float(first_order.get("Boxes_Shipped", 0))
+    min_boxes = sum_boxes
+    max_boxes = sum_boxes
+
+    sum_marketing = float(first_order.get("Marketing_Spend", 0))
+    min_marketing = sum_marketing
+    max_marketing = sum_marketing
+
+    max_amount_order = first_order
+    min_amount_order = first_order
+
     year_counts = {}
-    for o in filtered_orders:
-        if o['Order_Date'] != "Unknown":
-            year = o['Order_Date'].split("-")[0]
-            year_counts[year] = year_counts.get(year, 0) + 1
-            
-    top_year = max(year_counts, key=year_counts.get) if year_counts else "Unknown"
     
-    max_amt_order = filtered_orders[0]
-    min_amt_order = filtered_orders[0]
-    
-    for o in filtered_orders[1:]:
-        if o['Amount'] > max_amt_order['Amount']:
-            max_amt_order = o
-        elif o['Amount'] == max_amt_order['Amount']:
-            if o['Marketing_Spend'] < max_amt_order['Marketing_Spend']:
-                max_amt_order = o
-                
-        if o['Amount'] < min_amt_order['Amount']:
-            min_amt_order = o
-        elif o['Amount'] == min_amt_order['Amount']:
-            if o['Marketing_Spend'] < min_amt_order['Marketing_Spend']:
-                min_amt_order = o
+    # Conteo manual del año del primer elemento
+    if "Order_Date" in first_order and first_order["Order_Date"]:
+        year = first_order["Order_Date"].split("-")[0]
+        year_counts[year] = 1
 
-    end_time = get_time()
+    # 3. Recorrer la lista filtrada para acumular y comparar
+    for i in range(1, count):
+        order = lt.get_element(filtered_list, i)
+
+        # Precios
+        price = float(order.get("Price_per_Box", 0))
+        sum_price += price
+        if price < min_price: min_price = price
+        if price > max_price: max_price = price
+
+        # Descuentos
+        discount = float(order.get("Discount_Pct", 0))
+        sum_discount += discount
+        if discount < min_discount: min_discount = discount
+        if discount > max_discount: max_discount = discount
+
+        # Cajas enviadas
+        boxes = float(order.get("Boxes_Shipped", 0))
+        sum_boxes += boxes
+        if boxes < min_boxes: min_boxes = boxes
+        if boxes > max_boxes: max_boxes = boxes
+
+        # Inversión en mercadeo
+        mkt = float(order.get("Marketing_Spend", 0))
+        sum_marketing += mkt
+        if mkt < min_marketing: min_marketing = mkt
+        if mkt > max_marketing: max_marketing = mkt
+
+        # Conteo de frecuencia de años (manual)
+        if "Order_Date" in order and order["Order_Date"]:
+            year = order["Order_Date"].split("-")[0]
+            if year in year_counts:
+                year_counts[year] += 1
+            else:
+                year_counts[year] = 1
+
+        # Comparación de MAX Amount (Desempate: menor Marketing_Spend)
+        curr_amount = float(order.get("Amount", 0))
+        max_amount = float(max_amount_order.get("Amount", 0))
+
+        if curr_amount > max_amount:
+            max_amount_order = order
+        elif curr_amount == max_amount:
+            curr_mkt = float(order.get("Marketing_Spend", 0))
+            max_mkt = float(max_amount_order.get("Marketing_Spend", 0))
+            if curr_mkt < max_mkt:
+                max_amount_order = order
+
+        # Comparación de MIN Amount (Desempate: menor Marketing_Spend)
+        min_amount = float(min_amount_order.get("Amount", 0))
+
+        if curr_amount < min_amount:
+            min_amount_order = order
+        elif curr_amount == min_amount:
+            curr_mkt = float(order.get("Marketing_Spend", 0))
+            min_mkt = float(min_amount_order.get("Marketing_Spend", 0))
+            if curr_mkt < min_mkt:
+                min_amount_order = order
+
+    # 4. Cálculo manual del año con más pedidos
+    most_frequent_year = "N/A"
+    max_year_count = 0
+    for year, count_val in year_counts.items():
+        if count_val > max_year_count:
+            max_year_count = count_val
+            most_frequent_year = year
+
+    end_time = time.time()
+    execution_time_ms = (end_time - start_time) * 1000
+
+    # 5. Retornar el diccionario estructurado
     return {
-        'elapsed_time_ms': delta_time(start_time, end_time),
-        'total_count': total_count,
-        'avg_price': sum(prices)/len(prices) if prices else 0,
-        'min_price': min(prices) if prices else 0,
-        'max_price': max(prices) if prices else 0,
-        'avg_discount': sum(discounts)/len(discounts) if discounts else 0,
-        'min_discount': min(discounts) if discounts else 0,
-        'max_discount': max(discounts) if discounts else 0,
-        'avg_boxes': sum(boxes)/len(boxes) if boxes else 0,
-        'min_boxes': min(boxes) if boxes else 0,
-        'max_boxes': max(boxes) if boxes else 0,
-        'avg_spend': sum(spends)/len(spends) if spends else 0,
-        'min_spend': min(spends) if spends else 0,
-        'max_spend': max(spends) if spends else 0,
-        'top_year': top_year,
-        'max_amt_order': max_amt_order,
-        'min_amt_order': min_amt_order
+        "execution_time_ms": execution_time_ms,
+        "total_orders": count,
+        "price_per_box": {
+            "avg": sum_price / count,
+            "min": min_price,
+            "max": max_price
+        },
+        "discount_pct": {
+            "avg": sum_discount / count,
+            "min": min_discount,
+            "max": max_discount
+        },
+        "boxes_shipped": {
+            "avg": sum_boxes / count,
+            "min": min_boxes,
+            "max": max_boxes
+        },
+        "marketing_spend": {
+            "avg": sum_marketing / count,
+            "min": min_marketing,
+            "max": max_marketing
+        },
+        "most_frequent_year": most_frequent_year,
+        "max_amount_order": {
+            "Amount": max_amount_order.get("Amount"),
+            "Order_ID": max_amount_order.get("Order_ID"),
+            "Country": max_amount_order.get("Country"),
+            "Order_Date": max_amount_order.get("Order_Date"),
+            "Price_per_Box": max_amount_order.get("Price_per_Box")
+        },
+        "min_amount_order": {
+            "Amount": min_amount_order.get("Amount"),
+            "Order_ID": min_amount_order.get("Order_ID"),
+            "Country": min_amount_order.get("Country"),
+            "Order_Date": min_amount_order.get("Order_Date"),
+            "Price_per_Box": min_amount_order.get("Price_per_Box")
+        }
     }
-
 
 def req_2(catalog, min_price, max_price):
     """
