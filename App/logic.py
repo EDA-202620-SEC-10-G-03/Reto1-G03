@@ -175,45 +175,82 @@ def req_2(catalog, min_price, max_price):
     """
     start_time = get_time()
     orders = catalog['orders']
-    sz = list_structure.size(orders)
+    sz = lt.size(orders)
     
-    filtered = []
-    for i in range(0, sz):
-        elem = list_structure.get_element(orders, i)
-        if elem['Price_per_Box'] != "Unknown" and min_price <= elem['Price_per_Box'] <= max_price:
-            filtered.append(elem)
-            
-    total_count = len(filtered)
-    if total_count == 0:
-        return {'elapsed_time_ms': delta_time(start_time, get_time()), 'total_count': 0}
-        
-    avg_discount = sum(o['Discount_Pct'] for o in filtered if o['Discount_Pct'] != "Unknown") / total_count
-    avg_spend = sum(o['Marketing_Spend'] for o in filtered if o['Marketing_Spend'] != "Unknown") / total_count
-    avg_price = sum(o['Price_per_Box'] for o in filtered if o['Price_per_Box'] != "Unknown") / total_count
+    filtered = lt.new_list()
     
-    most_recent = filtered[0]
-    for o in filtered[1:]:
-        if o['Order_Date'] > most_recent['Order_Date']:
-            most_recent = o
-        elif o['Order_Date'] == most_recent['Order_Date']:
-            if o['Amount'] > most_recent['Amount']:
-                most_recent = o
-                
-    min_amt = filtered[0]
-    max_amt = filtered[0]
-    for o in filtered[1:]:
-        if o['Amount'] < min_amt['Amount']:
-            min_amt = o
-        elif o['Amount'] == min_amt['Amount']:
-            if o['Price_per_Box'] < min_amt['Price_per_Box']:
-                min_amt = o
-                
-        if o['Amount'] > max_amt['Amount']:
-            max_amt = o
-        elif o['Amount'] == max_amt['Amount']:
-            if o['Price_per_Box'] < max_amt['Price_per_Box']:
-                max_amt = o
 
+    total_discount = 0
+    count_discount = 0
+    total_spend = 0
+    count_spend = 0
+    total_price = 0
+    count_price = 0
+ 
+    # Acumuladores para no tener que recorrer 'filtered' otra vez
+    most_recent = None
+    min_amt = None
+    max_amt = None
+ 
+    for i in range(0, sz):
+        elem = lt.get_element(orders, i)
+
+        precio_valido = elem['Price_per_Box'] != "Unknown"
+        en_rango = precio_valido and (min_price <= elem['Price_per_Box'] <= max_price)
+ 
+        if en_rango:
+            lt.add_last(filtered, elem)
+ 
+            if elem['Discount_Pct'] != "Unknown":
+                total_discount += elem['Discount_Pct']
+                count_discount += 1
+ 
+            if elem['Marketing_Spend'] != "Unknown":
+                total_spend += elem['Marketing_Spend']
+                count_spend += 1
+ 
+            total_price += elem['Price_per_Box']
+            count_price += 1
+ 
+            # Pedido mas reciente (Order_Date mas grande; empate -> mayor Amount)
+            if most_recent is None:
+                most_recent = elem
+            elif elem['Order_Date'] > most_recent['Order_Date']:
+                most_recent = elem
+            elif elem['Order_Date'] == most_recent['Order_Date']:
+                if elem['Amount'] > most_recent['Amount']:
+                    most_recent = elem
+ 
+            # Pedido de menor Amount (empate -> menor Price_per_Box)
+            if min_amt is None:
+                min_amt = elem
+            elif elem['Amount'] < min_amt['Amount']:
+                min_amt = elem
+            elif elem['Amount'] == min_amt['Amount']:
+                if elem['Price_per_Box'] < min_amt['Price_per_Box']:
+                    min_amt = elem
+ 
+            # Pedido de mayor Amount (empate -> menor Price_per_Box)
+            if max_amt is None:
+                max_amt = elem
+            elif elem['Amount'] > max_amt['Amount']:
+                max_amt = elem
+            elif elem['Amount'] == max_amt['Amount']:
+                if elem['Price_per_Box'] < max_amt['Price_per_Box']:
+                    max_amt = elem
+ 
+    total_count = lt.size(filtered)
+ 
+    if total_count == 0:
+        return {
+            'elapsed_time_ms': delta_time(start_time, get_time()),
+            'total_count': 0
+        }
+ 
+    avg_discount = total_discount / count_discount if count_discount > 0 else 0
+    avg_spend = total_spend / count_spend if count_spend > 0 else 0
+    avg_price = total_price / count_price if count_price > 0 else 0
+ 
     end_time = get_time()
     return {
         'elapsed_time_ms': delta_time(start_time, end_time),
