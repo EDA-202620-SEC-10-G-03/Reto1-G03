@@ -199,174 +199,117 @@ import time
 import DataStructures.List.array_list as lt
 
 
-def req_1(catalog, product_name):
+def req_1(catalog, product):
     """
-    REQ 1: Promedio de características para un producto específico.
-    
-    :param catalog: Catálogo principal que contiene la lista de pedidos en catalog['orders'].
-    :param product_name: Nombre del producto a buscar (str).
-    :return: Diccionario plano con los resultados estadísticos del requerimiento.
+    REQ 1: Calcula estadísticas y promedios para un producto específico usando SLL.
     """
     start_time = time.time()
 
-    # Extraer la lista de pedidos del catálogo de manera segura
-    if isinstance(catalog, dict) and 'orders' in catalog:
-        dataset = catalog['orders']
-    else:
-        dataset = catalog
+    # Extraer la lista general
+    orders = catalog['orders'] if isinstance(catalog, dict) and 'orders' in catalog else catalog
+    sz = lt.size(orders)
+    
+    # 1. Filtrar usando Single Linked List (SLL)
+    filtered = sll.new_list()
+    prod_target = str(product).strip().lower()
 
-    # 1. Filtrar los pedidos del producto especificado usando la estructura lt
-    filtered_list = lt.new_list()
-    total_dataset = lt.size(dataset)
+    for i in range(sz):
+        elem = lt.get_element(orders, i)
+        prod_val = str(elem.get('Product', '')).strip().lower()
+        if prod_val == prod_target:
+            sll.add_last(filtered, elem)
 
-    for i in range(total_dataset):
-        order = lt.get_element(dataset, i)
-        if order.get("Product") == product_name:
-            lt.add_last(filtered_list, order)
+    total_count = sll.size(filtered)
 
-    count = lt.size(filtered_list)
-
-    # Si no se encontraron pedidos para ese producto
-    if count == 0:
+    if total_count == 0:
         end_time = time.time()
         return {
-            "elapsed_time_ms": (end_time - start_time) * 1000,
-            "total_count": 0,
-            "avg_price": 0, "min_price": 0, "max_price": 0,
-            "avg_discount": 0, "min_discount": 0, "max_discount": 0,
-            "avg_boxes": 0, "min_boxes": 0, "max_boxes": 0,
-            "avg_spend": 0, "min_spend": 0, "max_spend": 0,
-            "top_year": "N/A",
-            "max_amount_order": None,
-            "min_amount_order": None
+            'elapsed_time_ms': (end_time - start_time) * 1000,
+            'total_count': 0,
+            'max_amt_order': None,
+            'min_amt_order': None
         }
 
-    # 2. Inicializar acumuladores con el primer elemento
-    first_order = lt.get_element(filtered_list, 0)
-
-    sum_price = float(first_order.get("Price_per_Box", 0))
-    min_price = sum_price
-    max_price = sum_price
-
-    sum_discount = float(first_order.get("Discount_Pct", 0))
-    min_discount = sum_discount
-    max_discount = sum_discount
-
-    sum_boxes = float(first_order.get("Boxes_Shipped", 0))
-    min_boxes = sum_boxes
-    max_boxes = sum_boxes
-
-    sum_spend = float(first_order.get("Marketing_Spend", 0))
-    min_spend = sum_spend
-    max_spend = sum_spend
-
-    max_amount_order = first_order
-    min_amount_order = first_order
+    # Acumuladores y valores de comparación
+    sum_price = sum_disc = sum_boxes = sum_spend = 0.0
+    min_price = min_disc = min_boxes = min_spend = float('inf')
+    max_price = max_disc = max_boxes = max_spend = float('-inf')
 
     year_counts = {}
-    
-    # Conteo manual del año del primer elemento
-    if "Order_Date" in first_order and first_order["Order_Date"]:
-        year = str(first_order["Order_Date"]).split("-")[0]
-        year_counts[year] = 1
+    max_amt_order = None
+    min_amt_order = None
 
-    # 3. Recorrer la lista filtrada para acumular y comparar
-    for i in range(1, count):
-        order = lt.get_element(filtered_list, i)
+    # 2. Recorrer la Single Linked List
+    for i in range(total_count):
+        elem = sll.get_element(filtered, i)
 
-        # Precios
-        price = float(order.get("Price_per_Box", 0))
+        # Conversiones seguras
+        price = float(elem.get('Price_per_Box', 0)) if elem.get('Price_per_Box') != "Unknown" else 0.0
+        disc = float(elem.get('Discount_Pct', 0)) if elem.get('Discount_Pct') != "Unknown" else 0.0
+        boxes = float(elem.get('Boxes_Shipped', 0)) if elem.get('Boxes_Shipped') != "Unknown" else 0.0
+        spend = float(elem.get('Marketing_Spend', 0)) if elem.get('Marketing_Spend') != "Unknown" else 0.0
+        amount = float(elem.get('Amount', 0)) if elem.get('Amount') != "Unknown" else 0.0
+
+        # Sumas
         sum_price += price
-        if price < min_price: min_price = price
-        if price > max_price: max_price = price
-
-        # Descuentos
-        discount = float(order.get("Discount_Pct", 0))
-        sum_discount += discount
-        if discount < min_discount: min_discount = discount
-        if discount > max_discount: max_discount = discount
-
-        # Cajas enviadas
-        boxes = float(order.get("Boxes_Shipped", 0))
+        sum_disc += disc
         sum_boxes += boxes
-        if boxes < min_boxes: min_boxes = boxes
-        if boxes > max_boxes: max_boxes = boxes
+        sum_spend += spend
 
-        # Inversión en mercadeo (Spend)
-        mkt = float(order.get("Marketing_Spend", 0))
-        sum_spend += mkt
-        if mkt < min_spend: min_spend = mkt
-        if mkt > max_spend: max_spend = mkt
+        # Mínimos y Máximos
+        min_price, max_price = min(min_price, price), max(max_price, price)
+        min_disc, max_disc = min(min_disc, disc), max(max_disc, disc)
+        min_boxes, max_boxes = min(min_boxes, boxes), max(max_boxes, boxes)
+        min_spend, max_spend = min(min_spend, spend), max(max_spend, spend)
 
-        # Conteo de frecuencia de años
-        if "Order_Date" in order and order["Order_Date"]:
-            year = str(order["Order_Date"]).split("-")[0]
-            if year in year_counts:
-                year_counts[year] += 1
-            else:
-                year_counts[year] = 1
+        # Año con más pedidos
+        o_date = str(elem.get('Order_Date', '')).strip()
+        year = o_date[:4] if len(o_date) >= 4 else "Unknown"
+        year_counts[year] = year_counts.get(year, 0) + 1
 
-        # Comparación de MAX Amount (Desempate: menor Marketing_Spend)
-        curr_amount = float(order.get("Amount", 0))
-        max_amount = float(max_amount_order.get("Amount", 0))
+        # Pedido con MAYOR Amount (desempate por menor Marketing_Spend)
+        if max_amt_order is None:
+            max_amt_order = elem
+        else:
+            curr_max_amt = float(max_amt_order.get('Amount', 0))
+            if amount > curr_max_amt:
+                max_amt_order = elem
+            elif amount == curr_max_amt:
+                if spend < float(max_amt_order.get('Marketing_Spend', 0)):
+                    max_amt_order = elem
 
-        if curr_amount > max_amount:
-            max_amount_order = order
-        elif curr_amount == max_amount:
-            curr_mkt = float(order.get("Marketing_Spend", 0))
-            max_mkt = float(max_amount_order.get("Marketing_Spend", 0))
-            if curr_mkt < max_mkt:
-                max_amount_order = order
+        # Pedido con MENOR Amount (desempate por menor Marketing_Spend)
+        if min_amt_order is None:
+            min_amt_order = elem
+        else:
+            curr_min_amt = float(min_amt_order.get('Amount', 0))
+            if amount < curr_min_amt:
+                min_amt_order = elem
+            elif amount == curr_min_amt:
+                if spend < float(min_amt_order.get('Marketing_Spend', 0)):
+                    min_amt_order = elem
 
-        # Comparación de MIN Amount (Desempate: menor Marketing_Spend)
-        min_amount = float(min_amount_order.get("Amount", 0))
-
-        if curr_amount < min_amount:
-            min_amount_order = order
-        elif curr_amount == min_amount:
-            curr_mkt = float(order.get("Marketing_Spend", 0))
-            min_mkt = float(min_amount_order.get("Marketing_Spend", 0))
-            if curr_mkt < min_mkt:
-                min_amount_order = order
-
-    # 4. Cálculo manual del año con más pedidos
-    top_year = "N/A"
-    max_year_count = 0
-    for year, count_val in year_counts.items():
-        if count_val > max_year_count:
-            max_year_count = count_val
-            top_year = year
-
+    top_year = max(year_counts, key=year_counts.get) if year_counts else "N/A"
     end_time = time.time()
-    elapsed_time_ms = (end_time - start_time) * 1000
 
-    # 5. Retornar con las claves exactas requeridas por tu view.py
-    # 5. Retornar con las claves exactas requeridas por tu view.py
-    # 5. Retornar con las claves exactas requeridas por tu view.py
-    # 5. Retornar con las claves exactas requeridas por tu view.py
     return {
-        "elapsed_time_ms": elapsed_time_ms,
-        "total_count": count,
-        
-        "avg_price": sum_price / count,
-        "min_price": min_price,
-        "max_price": max_price,
-        
-        "avg_discount": sum_discount / count,
-        "min_discount": min_discount,
-        "max_discount": max_discount,
-        
-        "avg_boxes": sum_boxes / count,
-        "min_boxes": min_boxes,
-        "max_boxes": max_boxes,
-        
-        "avg_spend": sum_spend / count,
-        "min_spend": min_spend,
-        "max_spend": max_spend,
-        
-        "top_year": top_year,
-        "max_amt_order": max_amount_order,
-        "min_amt_order": min_amount_order
+        'elapsed_time_ms': (end_time - start_time) * 1000,
+        'total_count': total_count,
+        'avg_price': sum_price / total_count,
+        'min_price': min_price,
+        'max_price': max_price,
+        'avg_discount': sum_disc / total_count,
+        'min_discount': min_disc,
+        'max_discount': max_disc,
+        'avg_boxes': sum_boxes / total_count,
+        'min_boxes': min_boxes,
+        'max_boxes': max_boxes,
+        'avg_spend': sum_spend / total_count,
+        'min_spend': min_spend,
+        'max_spend': max_spend,
+        'top_year': top_year,
+        'max_amt_order': max_amt_order,  # Llave corregida para el view
+        'min_amt_order': min_amt_order   # Llave corregida para el view
     }
     
 def req_2(catalog, min_price, max_price):

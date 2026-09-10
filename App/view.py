@@ -81,14 +81,15 @@ def print_data(control, id):
     Función que imprime un dato dado su ID
     """
     orders = control['orders']
-    sz = logic.list_structure.size(orders)
+    sz = lt.size(orders)
     found = None
-    # Cambio realizado: Ajustado a base 0 (0 a sz - 1)
+
     for i in range(0, sz):
-        elem = logic.list_structure.get_element(orders, i)
-        if elem['Order_ID'] == id:
+        elem = lt.get_element(orders, i)
+        if str(elem.get('Order_ID')).strip() == str(id).strip():
             found = elem
             break
+
     if found:
         print(tabulate([print_order_row(found)], headers=headers, tablefmt="grid"))
     else:
