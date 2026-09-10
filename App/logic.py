@@ -507,93 +507,101 @@ def req_2(catalog, min_price, max_price):
 
 
 
-def req_3(catalog, country="any", channel="any"):
-    """
-    Retorna el resultado del requerimiento 3
-    """
-    # TODO: Modificar el requerimiento 3
-    start_time = get_time()
-    pedidos = lt.new_list()
-    
-    
-    prom_product = lt.new_list()
-    count_product = lt.new_list()
-    prom_order_date = lt.new_list()
-    count_order_date = lt.new_list()
-    prom_discount_pct = 0
-    prom_price_per_box = 0
-    prom_marketing_spend = 0
-    prom_boxes_shipped = 0
-    prom_amount = 0
-
-    
-    if not country == "any" and not channel == "any":
-        
-        for posicion in range(catalog["country"]["size"]):
-            if lt.get_element(catalog["country"], posicion-1) == country:
-                pedido = lt.new_list()
-                order_id = lt.get_element(catalog["order_id"], (posicion-1))
-                product = lt.get_element(catalog["product"], (posicion-1))
-                order_date = lt.get_element(catalog["order_date"], (posicion-1))
-                discount_pct = lt.get_element(catalog["discount_pct"], (posicion-1))
-                price_per_box = lt.get_element(catalog["price_per_box"], (posicion-1))
-                marketing_spend = lt.get_element(catalog["marketing_spend"], (posicion-1))
-                boxes_shipped = lt.get_element(catalog["boxes_shipped"], (posicion-1))
-                amount = lt.get_element(catalog["amount"], (posicion-1))
-                
-                if lt.is_present(prom_product, product) == -1:
-                    lt.add_last(prom_product)
-                    lt.add_last(count_product, 1)
-                else:
-                    pos = lt.is_present(prom_product, product)
-                    lt.change_info(prom_product, pos, (lt.get_element(prom_product, pos) + 1))
-                
-                if lt.is_present(prom_order_date) == -1:
-                    lt.add_last(prom_order_date , order_date)
-                    lt.add_last(count_order_date, 1)
-                else:
-                    pos = lt.is_present(prom_order_date, order_date)
-                    lt.change_info(prom_order_date, pos, (lt.get_element(prom_order_date, pos) + 1))
-                
-                
-                prom_discount_pct += discount_pct
-                prom_price_per_box += price_per_box
-                prom_marketing_spend += marketing_spend
-                prom_boxes_shipped += boxes_shipped
-                prom_amount += amount
-                lt.add_last(pedido, order_id)
-                lt.add_last(pedidos, pedido)
-    
-    tamano = lt.size(pedidos)
-    
-    more_product = 0
-    more_order_date = 0
-    for x in range(tamano):
-        if lt.get_element(count_order_date, (x-1)) > more_order_date:
-            more_order_date = lt.get_element(count_order_date, (x-1))
-        if lt.get_element(count_product, (x-1)) > more_product:
-            more_product = lt.get_element(count_product, (x-1))
-            
-    
-    variable_final = {
-    "total_orders": tamano,
-    "prom_product": lt.get_element(prom_product, lt.is_present(count_product, more_product)),
-    "prom_order_date": lt.get_element(prom_order_date, lt.is_present(count_order_date, more_order_date)) ,
-    "prom_discount_pct": prom_discount_pct / tamano,
-    "prom_price_per_box": prom_price_per_box / tamano,
-    "prom_marketing_spend": prom_marketing_spend / tamano,
-    "prom_boxes_shipped": prom_boxes_shipped / tamano,
-    "prom_amount": prom_amount / tamano,                
-              
-    }
-
-    
-    end_time = get_time()
-    dif = delta_time(start_time, end_time)
-    variable_final["time"]= dif
-    return  variable_final
+import time
 
 import time
+
+import time
+
+def req_3(catalog, country="any", channel="any"):
+    """
+    REQ 3: Retorna estadísticas (promedios, producto más frecuente y año con más pedidos)
+    filtrando por País y/o Canal.
+    """
+    start_time = time.time()
+
+    orders = catalog['orders'] if isinstance(catalog, dict) and 'orders' in catalog else catalog
+    sz = lt.size(orders)
+    filtered = lt.new_list()
+
+    c_target = str(country).strip().lower()
+    ch_target = str(channel).strip().lower()
+
+    # 1. Filtrado por País y Canal
+    for i in range(sz):
+        elem = lt.get_element(orders, i)
+        
+        elem_country = str(elem.get('Country', elem.get('country', ''))).strip().lower()
+        elem_channel = str(elem.get('Channel', elem.get('channel', ''))).strip().lower()
+
+        match_country = (c_target == "any" or c_target == "" or elem_country == c_target)
+        match_channel = (ch_target == "any" or ch_target == "" or elem_channel == ch_target)
+
+        if match_country and match_channel:
+            lt.add_last(filtered, elem)
+
+    total_count = lt.size(filtered)
+
+    if total_count == 0:
+        end_time = time.time()
+        return {
+            'elapsed_time_ms': (end_time - start_time) * 1000,
+            'total_count': 0,
+            'avg_price': 0.0,
+            'avg_discount': 0.0,
+            'avg_spend': 0.0,
+            'avg_boxes': 0.0,
+            'most_freq_product': "N/A",
+            'top_year': "N/A"
+        }
+
+    # 2. Acumulación para promedios y conteo de frecuencias
+    sum_discount = 0.0
+    sum_price = 0.0
+    sum_spend = 0.0
+    sum_boxes = 0.0
+
+    product_counts = {}
+    year_counts = {}
+
+    for i in range(total_count):
+        order = lt.get_element(filtered, i)
+
+        disc = float(order.get('Discount_Pct', order.get('discount_pct', 0))) if order.get('Discount_Pct') != "Unknown" else 0.0
+        price = float(order.get('Price_per_Box', order.get('price_per_box', 0))) if order.get('Price_per_Box') != "Unknown" else 0.0
+        spend = float(order.get('Marketing_Spend', order.get('marketing_spend', 0))) if order.get('Marketing_Spend') != "Unknown" else 0.0
+        boxes = float(order.get('Boxes_Shipped', order.get('boxes_shipped', 0))) if order.get('Boxes_Shipped') != "Unknown" else 0.0
+
+        sum_discount += disc
+        sum_price += price
+        sum_spend += spend
+        sum_boxes += boxes
+
+        # Producto más frecuente
+        prod = order.get('Product', order.get('product', 'Unknown'))
+        product_counts[prod] = product_counts.get(prod, 0) + 1
+
+        # Año con más pedidos (extrae los primeros 4 dígitos de Order_Date)
+        o_date = str(order.get('Order_Date', order.get('order_date', ''))).strip()
+        year = o_date[:4] if len(o_date) >= 4 else "Unknown"
+        year_counts[year] = year_counts.get(year, 0) + 1
+
+    most_freq_product = max(product_counts, key=product_counts.get) if product_counts else "N/A"
+    top_year = max(year_counts, key=year_counts.get) if year_counts else "N/A"
+
+    end_time = time.time()
+
+    # Retorno con las llaves exactas que busca print_req_3
+    return {
+        'elapsed_time_ms': (end_time - start_time) * 1000,
+        'total_count': total_count,
+        'avg_price': sum_price / total_count,
+        'avg_discount': sum_discount / total_count,
+        'avg_spend': sum_spend / total_count,
+        'avg_boxes': sum_boxes / total_count,
+        'most_freq_product': most_freq_product,
+        'top_year': top_year
+    }
 
 def req_4(catalog, product, country):
     """
@@ -700,9 +708,6 @@ def req_4(catalog, product, country):
         'avg_boxes': (total_boxes / count_boxes) if count_boxes > 0 else 0.0,
         'top_2': top_2_list
     }
-import time
-
-import time
 
 def req_5(catalog, ftype, product, start_date, end_date):
     """
