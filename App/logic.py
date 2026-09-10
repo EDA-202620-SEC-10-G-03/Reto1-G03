@@ -14,181 +14,66 @@ def new_logic():
     return catalog
 
 
-def load_data(catalog, filename):
+def load_data(control, path):
     """
-    Carga los datos del reto desde el archivo CSV.
+    Carga los datos del archivo CSV en una lista y calcula min, max y primeros/últimos registros.
     """
-    csv.field_size_limit(2147483647)
-    
     start_time = time.time()
-    catalog['orders'] = lt.new_list()
+    orders = lt.new_list()
     
-    total_records = 0
     min_amount_order = None
     max_amount_order = None
     
-    with open(filename, mode='r', encoding='utf-8-sig') as file:
+    with open(path, mode='r', encoding='utf-8-sig') as file:
         reader = csv.DictReader(file)
-        
-        for raw_row in reader:
-            # 1. Limpiar las llaves del diccionario
-            row = {}
-            for key, val in raw_row.items():
-                if key is not None:
-                    clean_key = key.strip()
-                    row[clean_key] = val
-
-            total_records += 1
+        for row in reader:
+            lt.add_last(orders, row)
             
-            # 2. Procesar cada campo directamente aquí adentro
-            
-            # Campos de texto
-            order_id = row.get('Order_ID')
-            if order_id is not None and str(order_id).strip() != "":
-                order_id_val = str(order_id).strip()
-            else:
-                order_id_val = "Unknown"
-
-            product = row.get('Product')
-            if product is not None and str(product).strip() != "":
-                product_val = str(product).strip()
-            else:
-                product_val = "Unknown"
-
-            country = row.get('Country')
-            if country is not None and str(country).strip() != "":
-                country_val = str(country).strip()
-            else:
-                country_val = "Unknown"
-
-            channel = row.get('Channel')
-            if channel is not None and str(channel).strip() != "":
-                channel_val = str(channel).strip()
-            else:
-                channel_val = "Unknown"
-
-            order_date = row.get('Order_Date')
-            if order_date is not None and str(order_date).strip() != "":
-                order_date_val = str(order_date).strip()
-            else:
-                order_date_val = "Unknown"
-
-            # Campo Discount_Pct (float)
-            disc = row.get('Discount_Pct')
-            if disc is not None and str(disc).strip() != "":
+            amount_str = row.get('Amount', 'Unknown')
+            if amount_str != "Unknown":
                 try:
-                    disc_val = float(disc)
+                    amount_val = float(amount_str)
+                    row['Amount'] = amount_val # Normalizar a float si es posible
+                    
+                    # Evaluar mínimo Amount
+                    if min_amount_order is None or min_amount_order['Amount'] == "Unknown":
+                        min_amount_order = row
+                    else:
+                        if amount_val < min_amount_order['Amount']:
+                            min_amount_order = row
+                        elif amount_val == min_amount_order['Amount']:
+                            # Desempate por menor Price_per_Box
+                            p_curr = float(row.get('Price_per_Box', 0)) if row.get('Price_per_Box') != "Unknown" else float('inf')
+                            p_min = float(min_amount_order.get('Price_per_Box', 0)) if min_amount_order.get('Price_per_Box') != "Unknown" else float('inf')
+                            if p_curr < p_min:
+                                min_amount_order = row
+
+                    # Evaluar máximo Amount
+                    if max_amount_order is None or max_amount_order['Amount'] == "Unknown":
+                        max_amount_order = row
+                    else:
+                        if amount_val > max_amount_order['Amount']:
+                            max_amount_order = row
+                        elif amount_val == max_amount_order['Amount']:
+                            # Desempate por menor Price_per_Box
+                            p_curr = float(row.get('Price_per_Box', 0)) if row.get('Price_per_Box') != "Unknown" else float('inf')
+                            p_max = float(max_amount_order.get('Price_per_Box', 0)) if max_amount_order.get('Price_per_Box') != "Unknown" else float('inf')
+                            if p_curr < p_max:
+                                max_amount_order = row
                 except ValueError:
-                    disc_val = "Unknown"
-            else:
-                disc_val = "Unknown"
+                    pass
 
-            # Campo Price_per_Box (float)
-            price = row.get('Price_per_Box')
-            if price is not None and str(price).strip() != "":
-                try:
-                    price_val = float(price)
-                except ValueError:
-                    price_val = "Unknown"
-            else:
-                price_val = "Unknown"
-
-            # Campo Marketing_Spend (float)
-            mkt = row.get('Marketing_Spend')
-            if mkt is not None and str(mkt).strip() != "":
-                try:
-                    mkt_val = float(mkt)
-                except ValueError:
-                    mkt_val = "Unknown"
-            else:
-                mkt_val = "Unknown"
-
-            # Campo Boxes_Shipped (int)
-            boxes = row.get('Boxes_Shipped')
-            if boxes is not None and str(boxes).strip() != "":
-                try:
-                    boxes_val = int(boxes)
-                except ValueError:
-                    boxes_val = "Unknown"
-            else:
-                boxes_val = "Unknown"
-
-            # Campo Amount (float)
-            amt = row.get('Amount')
-            if amt is not None and str(amt).strip() != "":
-                try:
-                    amt_val = float(amt)
-                except ValueError:
-                    amt_val = "Unknown"
-            else:
-                amt_val = "Unknown"
-
-            # 3. Construir el diccionario del pedido
-            order = {
-                'Order_ID': order_id_val,
-                'Product': product_val,
-                'Country': country_val,
-                'Channel': channel_val,
-                'Order_Date': order_date_val,
-                'Discount_Pct': disc_val,
-                'Price_per_Box': price_val,
-                'Marketing_Spend': mkt_val,
-                'Boxes_Shipped': boxes_val,
-                'Amount': amt_val
-            }
-            
-            # Guardar en la estructura de datos lt
-            lt.add_last(catalog['orders'], order)
-            
-            # 4. Búsqueda del menor Amount (Desempate por menor Price_per_Box)
-            if min_amount_order is None:
-                min_amount_order = order
-            elif order['Amount'] != "Unknown" and min_amount_order['Amount'] != "Unknown":
-                if order['Amount'] < min_amount_order['Amount']:
-                    min_amount_order = order
-                elif order['Amount'] == min_amount_order['Amount']:
-                    if order['Price_per_Box'] != "Unknown" and min_amount_order['Price_per_Box'] != "Unknown":
-                        if order['Price_per_Box'] < min_amount_order['Price_per_Box']:
-                            min_amount_order = order
-                            
-            # 5. Búsqueda del mayor Amount (Desempate por menor Price_per_Box)
-            if max_amount_order is None:
-                max_amount_order = order
-            elif order['Amount'] != "Unknown" and max_amount_order['Amount'] != "Unknown":
-                if order['Amount'] > max_amount_order['Amount']:
-                    max_amount_order = order
-                elif order['Amount'] == max_amount_order['Amount']:
-                    if order['Price_per_Box'] != "Unknown" and max_amount_order['Price_per_Box'] != "Unknown":
-                        if order['Price_per_Box'] < max_amount_order['Price_per_Box']:
-                            max_amount_order = order
-
+    control['orders'] = orders
+    total_orders = lt.size(orders)
+    
+    first_5 = [lt.get_element(orders, i) for i in range(min(5, total_orders))]
+    last_5 = [lt.get_element(orders, i) for i in range(max(0, total_orders - 5), total_orders)]
+    
     end_time = time.time()
     
-    # 6. Obtener los primeros 5 y últimos 5 usando lt
-    first_5 = []
-    last_5 = []
-    sz = lt.size(catalog['orders'])
-    
-    if sz > 0:
-        limit_first = 5
-        if sz < 5:
-            limit_first = sz
-            
-        for i in range(limit_first):
-            element = lt.get_element(catalog['orders'], i)
-            first_5.append(element)
-            
-        start_index = 0
-        if sz > 5:
-            start_index = sz - 5
-            
-        for i in range(start_index, sz):
-            element = lt.get_element(catalog['orders'], i)
-            last_5.append(element)
-
     return {
         'elapsed_time_ms': (end_time - start_time) * 1000,
-        'total_orders': total_records,
+        'total_orders': total_orders,
         'min_amount_order': min_amount_order,
         'max_amount_order': max_amount_order,
         'first_5': first_5,
@@ -199,117 +84,110 @@ import time
 import DataStructures.List.array_list as lt
 
 
-def req_1(catalog, product):
+def req_1(control, product_name):
     """
-    REQ 1: Calcula estadísticas y promedios para un producto específico usando SLL.
+    Requerimiento 1: Estadísticas de un producto específico con contadores limpios para 'Unknown'.
     """
     start_time = time.time()
-
-    # Extraer la lista general
-    orders = catalog['orders'] if isinstance(catalog, dict) and 'orders' in catalog else catalog
+    orders = control['orders']
     sz = lt.size(orders)
     
-    # 1. Filtrar usando Single Linked List (SLL)
     filtered = sll.new_list()
-    prod_target = str(product).strip().lower()
-
-    for i in range(sz):
-        elem = lt.get_element(orders, i)
-        prod_val = str(elem.get('Product', '')).strip().lower()
-        if prod_val == prod_target:
-            sll.add_last(filtered, elem)
-
-    total_count = sll.size(filtered)
-
-    if total_count == 0:
-        end_time = time.time()
-        return {
-            'elapsed_time_ms': (end_time - start_time) * 1000,
-            'total_count': 0,
-            'max_amt_order': None,
-            'min_amt_order': None
-        }
-
-    # Acumuladores y valores de comparación
     sum_price = sum_disc = sum_boxes = sum_spend = 0.0
-    min_price = min_disc = min_boxes = min_spend = float('inf')
-    max_price = max_disc = max_boxes = max_spend = float('-inf')
-
-    year_counts = {}
+    c_p = c_d = c_b = c_s = 0
+    
+    min_price = float('inf')
+    max_price = float('-inf')
+    min_disc = float('inf')
+    max_disc = float('-inf')
+    min_boxes = float('inf')
+    max_boxes = float('-inf')
+    min_spend = float('inf')
+    max_spend = float('-inf')
+    
+    years_count = {}
     max_amt_order = None
     min_amt_order = None
+    
+    for i in range(sz):
+        o = lt.get_element(orders, i)
+        if str(o.get('Product', '')).strip().lower() == str(product_name).strip().lower():
+            sll.add_last(filtered, o)
+            
+            # Price_per_Box
+            p_val = o.get('Price_per_Box')
+            if p_val != "Unknown" and p_val is not None:
+                val = float(p_val)
+                sum_price += val
+                c_p += 1
+                if val < min_price: min_price = val
+                if val > max_price: max_price = val
+                
+            # Discount_Pct
+            d_val = o.get('Discount_Pct')
+            if d_val != "Unknown" and d_val is not None:
+                val = float(d_val)
+                sum_disc += val
+                c_d += 1
+                if val < min_disc: min_disc = val
+                if val > max_disc: max_disc = val
 
-    # 2. Recorrer la Single Linked List
-    for i in range(total_count):
-        elem = sll.get_element(filtered, i)
+            # Boxes_Shipped
+            b_val = o.get('Boxes_Shipped')
+            if b_val != "Unknown" and b_val is not None:
+                val = float(b_val)
+                sum_boxes += val
+                c_b += 1
+                if val < min_boxes: min_boxes = val
+                if val > max_boxes: max_boxes = val
 
-        # Conversiones seguras
-        price = float(elem.get('Price_per_Box', 0)) if elem.get('Price_per_Box') != "Unknown" else 0.0
-        disc = float(elem.get('Discount_Pct', 0)) if elem.get('Discount_Pct') != "Unknown" else 0.0
-        boxes = float(elem.get('Boxes_Shipped', 0)) if elem.get('Boxes_Shipped') != "Unknown" else 0.0
-        spend = float(elem.get('Marketing_Spend', 0)) if elem.get('Marketing_Spend') != "Unknown" else 0.0
-        amount = float(elem.get('Amount', 0)) if elem.get('Amount') != "Unknown" else 0.0
+            # Marketing_Spend
+            m_val = o.get('Marketing_Spend')
+            if m_val != "Unknown" and m_val is not None:
+                val = float(m_val)
+                sum_spend += val
+                c_s += 1
+                if val < min_spend: min_spend = val
+                if val > max_spend: max_spend = val
 
-        # Sumas
-        sum_price += price
-        sum_disc += disc
-        sum_boxes += boxes
-        sum_spend += spend
+            # Amount min/max para el producto
+            a_val = o.get('Amount')
+            if a_val != "Unknown" and a_val is not None:
+                aval_f = float(a_val)
+                if max_amt_order is None or aval_f > float(max_amt_order.get('Amount', 0)):
+                    max_amt_order = o
+                if min_amt_order is None or aval_f < float(min_amt_order.get('Amount', 0)):
+                    min_amt_order = o
 
-        # Mínimos y Máximos
-        min_price, max_price = min(min_price, price), max(max_price, price)
-        min_disc, max_disc = min(min_disc, disc), max(max_disc, disc)
-        min_boxes, max_boxes = min(min_boxes, boxes), max(max_boxes, boxes)
-        min_spend, max_spend = min(min_spend, spend), max(max_spend, spend)
+            # Años
+            date_str = str(o.get('Order_Date', ''))
+            if len(date_str) >= 4:
+                yr = date_str[:4]
+                years_count[yr] = years_count.get(yr, 0) + 1
 
-        # Año con más pedidos
-        o_date = str(elem.get('Order_Date', '')).strip()
-        year = o_date[:4] if len(o_date) >= 4 else "Unknown"
-        year_counts[year] = year_counts.get(year, 0) + 1
-
-        # Pedido con MAYOR Amount (desempate por menor Marketing_Spend)
-        if max_amt_order is None:
-            max_amt_order = elem
-        else:
-            curr_max_amt = float(max_amt_order.get('Amount', 0))
-            if amount > curr_max_amt:
-                max_amt_order = elem
-            elif amount == curr_max_amt:
-                if spend < float(max_amt_order.get('Marketing_Spend', 0)):
-                    max_amt_order = elem
-
-        # Pedido con MENOR Amount (desempate por menor Marketing_Spend)
-        if min_amt_order is None:
-            min_amt_order = elem
-        else:
-            curr_min_amt = float(min_amt_order.get('Amount', 0))
-            if amount < curr_min_amt:
-                min_amt_order = elem
-            elif amount == curr_min_amt:
-                if spend < float(min_amt_order.get('Marketing_Spend', 0)):
-                    min_amt_order = elem
-
-    top_year = max(year_counts, key=year_counts.get) if year_counts else "N/A"
+    total_count = sll.size(filtered)
+    top_year = max(years_count, key=years_count.get) if years_count else "N/A"
+    
     end_time = time.time()
-
+    
     return {
         'elapsed_time_ms': (end_time - start_time) * 1000,
         'total_count': total_count,
-        'avg_price': sum_price / total_count,
-        'min_price': min_price,
-        'max_price': max_price,
-        'avg_discount': sum_disc / total_count,
-        'min_discount': min_disc,
-        'max_discount': max_disc,
-        'avg_boxes': sum_boxes / total_count,
-        'min_boxes': min_boxes,
-        'max_boxes': max_boxes,
-        'avg_spend': sum_spend / total_count,
-        'min_spend': min_spend,
-        'max_spend': max_spend,
+        'avg_price': sum_price / c_p if c_p > 0 else 0.0,
+        'min_price': min_price if min_price != float('inf') else 0.0,
+        'max_price': max_price if max_price != float('-inf') else 0.0,
+        'avg_discount': sum_disc / c_d if c_d > 0 else 0.0,
+        'min_discount': min_disc if min_disc != float('inf') else 0.0,
+        'max_discount': max_disc if max_disc != float('-inf') else 0.0,
+        'avg_boxes': sum_boxes / c_b if c_b > 0 else 0.0,
+        'min_boxes': min_boxes if min_boxes != float('inf') else 0.0,
+        'max_boxes': max_boxes if max_boxes != float('-inf') else 0.0,
+        'avg_spend': sum_spend / c_s if c_s > 0 else 0.0,
+        'min_spend': min_spend if min_spend != float('inf') else 0.0,
+        'max_spend': max_spend if max_spend != float('-inf') else 0.0,
         'top_year': top_year,
-        'max_amt_order': max_amt_order,  # Llave corregida para el view
-        'min_amt_order': min_amt_order   # Llave corregida para el view
+        'max_amt_order': max_amt_order,
+        'min_amt_order': min_amt_order
     }
     
 def req_2(catalog, min_price, max_price):
@@ -456,92 +334,69 @@ import time
 
 import time
 
-def req_3(catalog, country="any", channel="any"):
+def req_3(control, country_name, channel_name):
     """
-    REQ 3: Retorna estadísticas (promedios, producto más frecuente y año con más pedidos)
-    filtrando por País y/o Canal.
+    Requerimiento 3: Filtro por país y canal con promedios y contadores seguros ante 'Unknown'.
     """
     start_time = time.time()
-
-    orders = catalog['orders'] if isinstance(catalog, dict) and 'orders' in catalog else catalog
+    orders = control['orders']
     sz = lt.size(orders)
-    filtered = lt.new_list()
-
-    c_target = str(country).strip().lower()
-    ch_target = str(channel).strip().lower()
-
-    # 1. Filtrado por País y Canal
+    
+    sum_price = sum_disc = sum_spend = sum_boxes = 0.0
+    c_p = c_d = c_s = c_b = 0
+    products_count = {}
+    years_count = {}
+    total_count = 0
+    
     for i in range(sz):
-        elem = lt.get_element(orders, i)
+        o = lt.get_element(orders, i)
+        c_match = str(o.get('Country', '')).strip().lower() == str(country_name).strip().lower()
+        ch_match = str(o.get('Channel', '')).strip().lower() == str(channel_name).strip().lower()
         
-        elem_country = str(elem.get('Country', elem.get('country', ''))).strip().lower()
-        elem_channel = str(elem.get('Channel', elem.get('channel', ''))).strip().lower()
+        if c_match and ch_match:
+            total_count += 1
+            
+            p_val = o.get('Price_per_Box')
+            if p_val != "Unknown" and p_val is not None:
+                sum_price += float(p_val)
+                c_p += 1
+                
+            d_val = o.get('Discount_Pct')
+            if d_val != "Unknown" and d_val is not None:
+                sum_disc += float(d_val)
+                c_d += 1
+                
+            m_val = o.get('Marketing_Spend')
+            if m_val != "Unknown" and m_val is not None:
+                sum_spend += float(m_val)
+                c_s += 1
+                
+            b_val = o.get('Boxes_Shipped')
+            if b_val != "Unknown" and b_val is not None:
+                sum_boxes += float(b_val)
+                c_b += 1
+                
+            prod = o.get('Product')
+            if prod:
+                products_count[prod] = products_count.get(prod, 0) + 1
+                
+            date_str = str(o.get('Order_Date', ''))
+            if len(date_str) >= 4:
+                yr = date_str[:4]
+                years_count[yr] = years_count.get(yr, 0) + 1
 
-        match_country = (c_target == "any" or c_target == "" or elem_country == c_target)
-        match_channel = (ch_target == "any" or ch_target == "" or elem_channel == ch_target)
-
-        if match_country and match_channel:
-            lt.add_last(filtered, elem)
-
-    total_count = lt.size(filtered)
-
-    if total_count == 0:
-        end_time = time.time()
-        return {
-            'elapsed_time_ms': (end_time - start_time) * 1000,
-            'total_count': 0,
-            'avg_price': 0.0,
-            'avg_discount': 0.0,
-            'avg_spend': 0.0,
-            'avg_boxes': 0.0,
-            'most_freq_product': "N/A",
-            'top_year': "N/A"
-        }
-
-    # 2. Acumulación para promedios y conteo de frecuencias
-    sum_discount = 0.0
-    sum_price = 0.0
-    sum_spend = 0.0
-    sum_boxes = 0.0
-
-    product_counts = {}
-    year_counts = {}
-
-    for i in range(total_count):
-        order = lt.get_element(filtered, i)
-
-        disc = float(order.get('Discount_Pct', order.get('discount_pct', 0))) if order.get('Discount_Pct') != "Unknown" else 0.0
-        price = float(order.get('Price_per_Box', order.get('price_per_box', 0))) if order.get('Price_per_Box') != "Unknown" else 0.0
-        spend = float(order.get('Marketing_Spend', order.get('marketing_spend', 0))) if order.get('Marketing_Spend') != "Unknown" else 0.0
-        boxes = float(order.get('Boxes_Shipped', order.get('boxes_shipped', 0))) if order.get('Boxes_Shipped') != "Unknown" else 0.0
-
-        sum_discount += disc
-        sum_price += price
-        sum_spend += spend
-        sum_boxes += boxes
-
-        # Producto más frecuente
-        prod = order.get('Product', order.get('product', 'Unknown'))
-        product_counts[prod] = product_counts.get(prod, 0) + 1
-
-        # Año con más pedidos (extrae los primeros 4 dígitos de Order_Date)
-        o_date = str(order.get('Order_Date', order.get('order_date', ''))).strip()
-        year = o_date[:4] if len(o_date) >= 4 else "Unknown"
-        year_counts[year] = year_counts.get(year, 0) + 1
-
-    most_freq_product = max(product_counts, key=product_counts.get) if product_counts else "N/A"
-    top_year = max(year_counts, key=year_counts.get) if year_counts else "N/A"
-
+    most_freq_product = max(products_count, key=products_count.get) if products_count else "N/A"
+    top_year = max(years_count, key=years_count.get) if years_count else "N/A"
+    
     end_time = time.time()
-
-    # Retorno con las llaves exactas que busca print_req_3
+    
     return {
         'elapsed_time_ms': (end_time - start_time) * 1000,
         'total_count': total_count,
-        'avg_price': sum_price / total_count,
-        'avg_discount': sum_discount / total_count,
-        'avg_spend': sum_spend / total_count,
-        'avg_boxes': sum_boxes / total_count,
+        'avg_price': sum_price / c_p if c_p > 0 else 0.0,
+        'avg_discount': sum_disc / c_d if c_d > 0 else 0.0,
+        'avg_spend': sum_spend / c_s if c_s > 0 else 0.0,
+        'avg_boxes': sum_boxes / c_b if c_b > 0 else 0.0,
         'most_freq_product': most_freq_product,
         'top_year': top_year
     }
@@ -549,7 +404,7 @@ def req_3(catalog, country="any", channel="any"):
 def req_4(catalog, product, country):
     """
     REQ 4: Calcula estadísticas promedio y obtiene los 2 pedidos con mayor Amount 
-    para una combinación específica de Producto y País.
+    para una combinación específica de Producto y País, aplicando desempates completos.
     """
     start_time = time.time()
 
@@ -609,29 +464,50 @@ def req_4(catalog, product, country):
             total_boxes += float(order['Boxes_Shipped'])
             count_boxes += 1
 
-        # Lógica de ordenamiento / Selección de Top 2 por 'Amount'
+        # Selección de Top 2 por 'Amount' con desempates completos
         if top_1 is None:
             top_1 = order
         else:
-            curr_amt = float(order.get('Amount', 0))
-            top1_amt = float(top_1.get('Amount', 0))
+            curr_amt = float(order.get('Amount', 0)) if order.get('Amount') != "Unknown" else 0.0
+            top1_amt = float(top_1.get('Amount', 0)) if top_1.get('Amount') != "Unknown" else 0.0
 
+            curr_mkt = float(order.get('Marketing_Spend', 0)) if order.get('Marketing_Spend') != "Unknown" else 0.0
+            top1_mkt = float(top_1.get('Marketing_Spend', 0)) if top_1.get('Marketing_Spend') != "Unknown" else 0.0
+
+            curr_id = str(order.get('Order_ID', ''))
+            top1_id = str(top_1.get('Order_ID', ''))
+
+            # Evaluación contra top_1: Amount -> Marketing_Spend -> Order_ID
+            es_mejor_que_top1 = False
             if curr_amt > top1_amt:
+                es_mejor_que_top1 = True
+            elif curr_amt == top1_amt:
+                if curr_mkt < top1_mkt:
+                    es_mejor_que_top1 = True
+                elif curr_mkt == top1_mkt:
+                    if curr_id < top1_id:
+                        es_mejor_que_top1 = True
+
+            if es_mejor_que_top1:
                 top_2 = top_1
                 top_1 = order
-            elif curr_amt == top1_amt:
-                # Criterio de desempate por menor Marketing_Spend
-                curr_mkt = float(order.get('Marketing_Spend', 0))
-                top1_mkt = float(top_1.get('Marketing_Spend', 0))
-                if curr_mkt < top1_mkt:
-                    top_2 = top_1
-                    top_1 = order
-                else:
-                    if top_2 is None or curr_amt > float(top_2.get('Amount', 0)):
-                        top_2 = order
             else:
-                if top_2 is None or curr_amt > float(top_2.get('Amount', 0)):
+                # Evaluación contra top_2
+                if top_2 is None:
                     top_2 = order
+                else:
+                    top2_amt = float(top_2.get('Amount', 0)) if top_2.get('Amount') != "Unknown" else 0.0
+                    top2_mkt = float(top_2.get('Marketing_Spend', 0)) if top_2.get('Marketing_Spend') != "Unknown" else 0.0
+                    top2_id = str(top_2.get('Order_ID', ''))
+
+                    if curr_amt > top2_amt:
+                        top_2 = order
+                    elif curr_amt == top2_amt:
+                        if curr_mkt < top2_mkt:
+                            top_2 = order
+                        elif curr_mkt == top2_mkt:
+                            if curr_id < top2_id:
+                                top_2 = order
 
     # Empaquetar los mejores 2 en una lista SLL
     top_2_list = sll.new_list()
@@ -655,7 +531,7 @@ def req_4(catalog, product, country):
 def req_5(catalog, ftype, product, start_date, end_date):
     """
     REQ 5: Encuentra el pedido con MAYOR o MENOR valor para un producto y rango de fechas,
-    y calcula los promedios del grupo filtrado.
+    con desempates triples (Amount -> Price_per_Box -> Marketing_Spend) y promedios exactos.
     """
     start_time = time.time()
 
@@ -690,37 +566,61 @@ def req_5(catalog, ftype, product, start_date, end_date):
             'avg_spend': 0.0
         }
 
-    # 2. Buscar el pedido MAYOR o MENOR según Amount y sumar promedios
-    selected_order = lt.get_element(filtered, 0)
-    best_value = float(selected_order.get('Amount', 0)) if selected_order.get('Amount') != "Unknown" else 0.0
-
-    sum_price = 0.0
-    sum_boxes = 0.0
-    sum_spend = 0.0
+    # 2. Buscar el pedido MAYOR o MENOR según reglas de desempate y sumar promedios
+    sum_price = sum_boxes = sum_spend = 0.0
+    c_price = c_boxes = c_spend = 0
+    selected_order = None
 
     for i in range(total_count):
         curr_order = lt.get_element(filtered, i)
         
-        # Extracción para promedios
-        price = float(curr_order['Price_per_Box']) if curr_order.get('Price_per_Box') != "Unknown" else 0.0
-        boxes = float(curr_order['Boxes_Shipped']) if curr_order.get('Boxes_Shipped') != "Unknown" else 0.0
-        spend = float(curr_order['Marketing_Spend']) if curr_order.get('Marketing_Spend') != "Unknown" else 0.0
-        
-        curr_amt = curr_order.get('Amount', 0)
-        curr_value = float(curr_amt) if curr_amt != "Unknown" else 0.0
+        # Conteo para promedios exactos ignorando "Unknown"
+        if curr_order.get('Price_per_Box') != "Unknown":
+            sum_price += float(curr_order['Price_per_Box'])
+            c_price += 1
+        if curr_order.get('Boxes_Shipped') != "Unknown":
+            sum_boxes += float(curr_order['Boxes_Shipped'])
+            c_boxes += 1
+        if curr_order.get('Marketing_Spend') != "Unknown":
+            sum_spend += float(curr_order['Marketing_Spend'])
+            c_spend += 1
 
-        sum_price += price
-        sum_boxes += boxes
-        sum_spend += spend
+        # Lógica de selección con desempate triple
+        if selected_order is None:
+            selected_order = curr_order
+        else:
+            curr_amt = float(curr_order.get('Amount', 0)) if curr_order.get('Amount') != "Unknown" else 0.0
+            sel_amt = float(selected_order.get('Amount', 0)) if selected_order.get('Amount') != "Unknown" else 0.0
 
-        # Comparación MAYOR / MENOR
-        if str(ftype).strip().upper() == "MAYOR":
-            if curr_value > best_value:
-                best_value = curr_value
-                selected_order = curr_order
-        elif str(ftype).strip().upper() == "MENOR":
-            if curr_value < best_value:
-                best_value = curr_value
+            curr_price = float(curr_order.get('Price_per_Box', 0)) if curr_order.get('Price_per_Box') != "Unknown" else 0.0
+            sel_price = float(selected_order.get('Price_per_Box', 0)) if selected_order.get('Price_per_Box') != "Unknown" else 0.0
+
+            curr_spend = float(curr_order.get('Marketing_Spend', 0)) if curr_order.get('Marketing_Spend') != "Unknown" else 0.0
+            sel_spend = float(selected_order.get('Marketing_Spend', 0)) if selected_order.get('Marketing_Spend') != "Unknown" else 0.0
+
+            cambiar = False
+            ftype_str = str(ftype).strip().upper()
+
+            if ftype_str == "MAYOR":
+                if curr_amt > sel_amt:
+                    cambiar = True
+                elif curr_amt == sel_amt:
+                    if curr_price < sel_price:
+                        cambiar = True
+                    elif curr_price == sel_price:
+                        if curr_spend < sel_spend:
+                            cambiar = True
+            elif ftype_str == "MENOR":
+                if curr_amt < sel_amt:
+                    cambiar = True
+                elif curr_amt == sel_amt:
+                    if curr_price < sel_price:
+                        cambiar = True
+                    elif curr_price == sel_price:
+                        if curr_spend < sel_spend:
+                            cambiar = True
+
+            if cambiar:
                 selected_order = curr_order
 
     end_time = time.time()
@@ -730,116 +630,99 @@ def req_5(catalog, ftype, product, start_date, end_date):
         'filter_type': ftype,
         'total_count': total_count,
         'selected_order': selected_order,
-        'avg_price': sum_price / total_count,
-        'avg_boxes': sum_boxes / total_count,
-        'avg_spend': sum_spend / total_count
+        'avg_price': sum_price / c_price if c_price > 0 else 0.0,
+        'avg_boxes': sum_boxes / c_boxes if c_boxes > 0 else 0.0,
+        'avg_spend': sum_spend / c_spend if c_spend > 0 else 0.0
     }
-
-def req_6(catalog, start_date, end_date):
+    
+def req_6(control, start_date, end_date):
     """
-    REQ 6: Identificar el canal con más ventas, mayor recaudación y estadísticas detalladas por canal.
+    Requerimiento 6: Estadísticas por canal protegidas contra valores 'Unknown' en inicializaciones.
     """
     start_time = time.time()
-
-    orders = catalog['orders'] if isinstance(catalog, dict) and 'orders' in catalog else catalog
+    orders = control['orders']
     sz = lt.size(orders)
-    filtered = lt.new_list()
-
-    # 1. Filtrar órdenes por rango de fechas
+    
+    channels = {}
+    total_count = 0
+    
     for i in range(sz):
-        elem = lt.get_element(orders, i)
-        order_date = str(elem.get('Order_Date', ''))
-        if start_date <= order_date <= end_date:
-            lt.add_last(filtered, elem)
-
-    total_count = lt.size(filtered)
-
-    if total_count == 0:
-        end_time = time.time()
-        return {
-            'elapsed_time_ms': (end_time - start_time) * 1000,
-            'total_count': 0,
-            'most_used_channel': {'name': "N/A", 'count': 0, 'total_amount': 0.0},
-            'most_revenue_channel': {'name': "N/A", 'count': 0, 'total_amount': 0.0},
-            'channel_stats': {}
-        }
-
-    # 2. Agrupar datos por canal
-    channels_dict = {}
-
-    for i in range(total_count):
-        order = lt.get_element(filtered, i)
-        ch = order.get('Channel', 'Unknown')
+        o = lt.get_element(orders, i)
+        od = str(o.get('Order_Date', ''))
         
-        price = float(order['Price_per_Box']) if order.get('Price_per_Box') != "Unknown" else 0.0
-        spend = float(order['Marketing_Spend']) if order.get('Marketing_Spend') != "Unknown" else 0.0
-        amt = float(order['Amount']) if order.get('Amount') != "Unknown" else 0.0
+        if start_date <= od <= end_date:
+            total_count += 1
+            ch = o.get('Channel', 'Unknown_Channel')
+            
+            if ch not in channels:
+                channels[ch] = {
+                    'count': 0,
+                    'total_amount': 0.0,
+                    'sum_price': 0.0,
+                    'c_price': 0,
+                    'sum_spend': 0.0,
+                    'c_spend': 0,
+                    'most_expensive': None,
+                    'cheapest': None
+                }
+                
+            channels[ch]['count'] += 1
+            
+            # Amount para ingresos
+            amt_val = o.get('Amount')
+            if amt_val != "Unknown" and amt_val is not None:
+                channels[ch]['total_amount'] += float(amt_val)
+                
+            # Price_per_Box
+            p_val = o.get('Price_per_Box')
+            if p_val != "Unknown" and p_val is not None:
+                p_f = float(p_val)
+                channels[ch]['sum_price'] += p_f
+                channels[ch]['c_price'] += 1
+                
+                # Más costoso del canal
+                exp = channels[ch]['most_expensive']
+                if exp is None or exp.get('Price_per_Box') == "Unknown" or p_f > float(exp.get('Price_per_Box', 0)):
+                    channels[ch]['most_expensive'] = o
+                    
+                # Más barato del canal
+                cheap = channels[ch]['cheapest']
+                if cheap is None or cheap.get('Price_per_Box') == "Unknown" or p_f < float(cheap.get('Price_per_Box', 0)):
+                    channels[ch]['cheapest'] = o
 
-        if ch not in channels_dict:
-            channels_dict[ch] = {
-                'count': 0,
-                'total_amount': 0.0,
-                'sum_price': 0.0,
-                'count_price': 0,
-                'sum_spend': 0.0,
-                'count_spend': 0,
-                'most_expensive': order,
-                'cheapest': order
-            }
+            # Marketing_Spend
+            m_val = o.get('Marketing_Spend')
+            if m_val != "Unknown" and m_val is not None:
+                channels[ch]['sum_spend'] += float(m_val)
+                channels[ch]['c_spend'] += 1
 
-        st = channels_dict[ch]
-        st['count'] += 1
-        st['total_amount'] += amt
-
-        if order.get('Price_per_Box') != "Unknown":
-            st['sum_price'] += price
-            st['count_price'] += 1
-
-        if order.get('Marketing_Spend') != "Unknown":
-            st['sum_spend'] += spend
-            st['count_spend'] += 1
-
-        # Evaluar pedido más costoso y más barato
-        exp_price = float(st['most_expensive'].get('Price_per_Box', 0)) if st['most_expensive'].get('Price_per_Box') != "Unknown" else 0.0
-        chp_price = float(st['cheapest'].get('Price_per_Box', 0)) if st['cheapest'].get('Price_per_Box') != "Unknown" else 0.0
-
-        if price > exp_price:
-            st['most_expensive'] = order
-        if price < chp_price:
-            st['cheapest'] = order
-
-    # 3. Determinar Canal Más Usado y Canal de Mayor Recaudación
-    mu_name = max(channels_dict, key=lambda k: channels_dict[k]['count'])
-    mr_name = max(channels_dict, key=lambda k: channels_dict[k]['total_amount'])
-
-    most_used_channel = {
-        'name': mu_name,
-        'count': channels_dict[mu_name]['count'],
-        'total_amount': channels_dict[mu_name]['total_amount']
-    }
-
-    most_revenue_channel = {
-        'name': mr_name,
-        'count': channels_dict[mr_name]['count'],
-        'total_amount': channels_dict[mr_name]['total_amount']
-    }
-
-    # 4. Formatear la salida de channel_stats
     channel_stats = {}
-    for ch, st in channels_dict.items():
+    most_used_channel = {'name': 'N/A', 'count': 0, 'total_amount': 0.0}
+    most_revenue_channel = {'name': 'N/A', 'count': 0, 'total_amount': -1.0}
+    
+    for ch, data in channels.items():
+        c_p = data['c_price']
+        c_s = data['c_spend']
+        
         channel_stats[ch] = {
-            'avg_price': (st['sum_price'] / st['count_price']) if st['count_price'] > 0 else 0.0,
-            'avg_spend': (st['sum_spend'] / st['count_spend']) if st['count_spend'] > 0 else 0.0,
-            'most_expensive': st['most_expensive'],
-            'cheapest': st['cheapest']
+            'avg_price': data['sum_price'] / c_p if c_p > 0 else 0.0,
+            'avg_spend': data['sum_spend'] / c_s if c_s > 0 else 0.0,
+            'most_expensive': data['most_expensive'],
+            'cheapest': data['cheapest']
         }
+        
+        if data['count'] > most_used_channel['count']:
+            most_used_channel = {'name': ch, 'count': data['count'], 'total_amount': data['total_amount']}
+            
+        if data['total_amount'] > most_revenue_channel['total_amount']:
+            most_revenue_channel = {'name': ch, 'count': data['count'], 'total_amount': data['total_amount']}
 
     end_time = time.time()
-
+    
     return {
         'elapsed_time_ms': (end_time - start_time) * 1000,
         'total_count': total_count,
         'most_used_channel': most_used_channel,
-        'most_revenue_channel': most_revenue_channel,  # Nombre corregido según la vista
+        'most_revenue_channel': most_revenue_channel,
         'channel_stats': channel_stats
     }
