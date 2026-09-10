@@ -2,7 +2,8 @@ import sys
 default_limit = 1000
 sys.setrecursionlimit(default_limit*10)
 import os
-
+from DataStructures.List import array_list as lt
+from DataStructures.List import single_linked_list as sll 
 # Asegura la resolución de rutas de importación
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -164,9 +165,12 @@ def print_req_4(control):
     """
     product = input("Producto: ").strip()
     country = input("País: ").strip()
+    
     res = logic.req_4(control, product, country)
+    
     print(f"\nTiempo de ejecución: {res['elapsed_time_ms']:.2f} ms")
     print(f"Total de pedidos: {res['total_count']}")
+    
     if res['total_count'] > 0:
         print(f"Promedio Price_per_Box: {res['avg_price']:.2f}")
         print(f"Promedio Discount_Pct: {res['avg_discount']:.2f}")
@@ -175,7 +179,21 @@ def print_req_4(control):
 
         print("\nTop 2 de mayor Amount:")
         top2_headers = ["Order_ID", "Channel", "Order_Date", "Boxes_Shipped", "Amount"]
-        rows = [[o['Order_ID'], o['Channel'], o['Order_Date'], o['Boxes_Shipped'], o['Amount']] for o in res['top_2']]
+        
+        # Extraer filas iterando según la API de SLL
+        rows = []
+        top_list = res.get('top_2')
+        if top_list is not None:
+            for i in range(sll.size(top_list)):
+                o = sll.get_element(top_list, i)
+                rows.append([
+                    o.get('Order_ID'),
+                    o.get('Channel'),
+                    o.get('Order_Date'),
+                    o.get('Boxes_Shipped'),
+                    o.get('Amount')
+                ])
+                
         print(tabulate(rows, headers=top2_headers, tablefmt="grid"))
 
 
