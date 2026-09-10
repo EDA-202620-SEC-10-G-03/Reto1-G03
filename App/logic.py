@@ -880,10 +880,12 @@ def req_5(catalog, filter_type, product, start_date, end_date):
     }
 
 
+import time
+import time
 
 def req_6(catalog, start_date, end_date):
     """
-    REQ 6: Identificar el canal con más ventas y mayor recaudación en un rango de tiempo
+    REQ 6: Identificar el canal con más ventas, mayor recaudación y estadísticas detalladas por canal.
     """
     start_time = time.time()
 
@@ -891,9 +893,11 @@ def req_6(catalog, start_date, end_date):
     sz = lt.size(orders)
     filtered = lt.new_list()
 
+    # 1. Filtrar órdenes por rango de fechas
     for i in range(sz):
         elem = lt.get_element(orders, i)
-        if start_date <= str(elem.get('Order_Date', '')) <= end_date:
+        order_date = str(elem.get('Order_Date', ''))
+        if start_date <= order_date <= end_date:
             lt.add_last(filtered, elem)
 
     total_count = lt.size(filtered)
@@ -903,57 +907,87 @@ def req_6(catalog, start_date, end_date):
         return {
             'elapsed_time_ms': (end_time - start_time) * 1000,
             'total_count': 0,
-            'top_channel_count': "N/A",
-            'top_channel_amount': "N/A"
+            'most_used_channel': {'name': "N/A", 'count': 0, 'total_amount': 0.0},
+            'most_revenue_channel': {'name': "N/A", 'count': 0, 'total_amount': 0.0},
+            'channel_stats': {}
         }
 
-    channel_data = lt.new_list()
+    # 2. Agrupar datos por canal
+    channels_dict = {}
 
     for i in range(total_count):
         order = lt.get_element(filtered, i)
-        channel = order.get('Channel', 'Unknown')
-        amt = float(order.get('Amount', 0)) if order.get('Amount') != "Unknown" else 0.0
+        ch = order.get('Channel', 'Unknown')
+        
+        price = float(order['Price_per_Box']) if order.get('Price_per_Box') != "Unknown" else 0.0
+        spend = float(order['Marketing_Spend']) if order.get('Marketing_Spend') != "Unknown" else 0.0
+        amt = float(order['Amount']) if order.get('Amount') != "Unknown" else 0.0
 
-        channel_pos = -1
-        for j in range(lt.size(channel_data)):
-            item = lt.get_element(channel_data, j)
-            if item['channel'] == channel:
-                channel_pos = j
-                break
+        if ch not in channels_dict:
+            channels_dict[ch] = {
+                'count': 0,
+                'total_amount': 0.0,
+                'sum_price': 0.0,
+                'count_price': 0,
+                'sum_spend': 0.0,
+                'count_spend': 0,
+                'most_expensive': order,
+                'cheapest': order
+            }
 
-        if channel_pos == -1:
-            lt.add_last(channel_data, {
-                'channel': channel,
-                'count': 1,
-                'total_amount': amt
-            })
-        else:
-            item = lt.get_element(channel_data, channel_pos)
-            item['count'] += 1
-            item['total_amount'] += amt
+        st = channels_dict[ch]
+        st['count'] += 1
+        st['total_amount'] += amt
 
-    # Identificar canal con mayor volumen y mayor monto total
-    max_count = -1
-    max_count_channel = None
+        if order.get('Price_per_Box') != "Unknown":
+            st['sum_price'] += price
+            st['count_price'] += 1
 
-    max_amount = -1.0
-    max_amount_channel = None
+        if order.get('Marketing_Spend') != "Unknown":
+            st['sum_spend'] += spend
+            st['count_spend'] += 1
 
-    for i in range(lt.size(channel_data)):
-        data = lt.get_element(channel_data, i)
-        if data['count'] > max_count:
-            max_count = data['count']
-            max_count_channel = data['channel']
+        # Evaluar pedido más costoso y más barato
+        exp_price = float(st['most_expensive'].get('Price_per_Box', 0)) if st['most_expensive'].get('Price_per_Box') != "Unknown" else 0.0
+        chp_price = float(st['cheapest'].get('Price_per_Box', 0)) if st['cheapest'].get('Price_per_Box') != "Unknown" else 0.0
 
-        if data['total_amount'] > max_amount:
-            max_amount = data['total_amount']
-            max_amount_channel = data['channel']
+        if price > exp_price:
+            st['most_expensive'] = order
+        if price < chp_price:
+            st['cheapest'] = order
+
+    # 3. Determinar Canal Más Usado y Canal de Mayor Recaudación
+    mu_name = max(channels_dict, key=lambda k: channels_dict[k]['count'])
+    mr_name = max(channels_dict, key=lambda k: channels_dict[k]['total_amount'])
+
+    most_used_channel = {
+        'name': mu_name,
+        'count': channels_dict[mu_name]['count'],
+        'total_amount': channels_dict[mu_name]['total_amount']
+    }
+
+    most_revenue_channel = {
+        'name': mr_name,
+        'count': channels_dict[mr_name]['count'],
+        'total_amount': channels_dict[mr_name]['total_amount']
+    }
+
+    # 4. Formatear la salida de channel_stats
+    channel_stats = {}
+    for ch, st in channels_dict.items():
+        channel_stats[ch] = {
+            'avg_price': (st['sum_price'] / st['count_price']) if st['count_price'] > 0 else 0.0,
+            'avg_spend': (st['sum_spend'] / st['count_spend']) if st['count_spend'] > 0 else 0.0,
+            'most_expensive': st['most_expensive'],
+            'cheapest': st['cheapest']
+        }
 
     end_time = time.time()
 
     return {
         'elapsed_time_ms': (end_time - start_time) * 1000,
         'total_count': total_count,
-        'top_channel_count': max_count_channel,
-        'top_channel_amount': max_amount_channel
+        'most_used_channel': most_used_channel,
+        'most_revenue_channel': most_revenue_channel,  # Nombre corregido según la vista
+        'channel_stats': channel_stats
     }
